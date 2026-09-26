@@ -5,12 +5,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.common.MinecraftForge;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,6 +19,8 @@ final class ClientMusicNetwork {
     private static final int MAX_TRACK_BYTES = 32 * 1024 * 1024;
     private static final Map<String, IncomingTrack> incomingTracks = new HashMap<>();
     private static final Set<String> loadedTracks = new HashSet<>();
+    private static final Set<String> tracksAwaitingReload = new HashSet<>();
+    private static boolean resourceReloadPending;
     private static String pendingTrack;
     private static boolean musicSyncSent;
 
@@ -35,6 +34,8 @@ final class ClientMusicNetwork {
     public static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
         incomingTracks.clear();
         loadedTracks.clear();
+        tracksAwaitingReload.clear();
+        resourceReloadPending = false;
         pendingTrack = null;
         musicSyncSent = false;
     }
@@ -42,7 +43,7 @@ final class ClientMusicNetwork {
     static void applySettings(ServerSettings.Snapshot settings) {
         ClientEvents.instance().applyServerSettings(settings);
         Minecraft minecraft = Minecraft.getInstance();
-        if (!musicSyncSent && minecraft.player != null && minecraft.player.hasPermissions(2)) {
+        if (!musicSyncSent && canManageServerMusic(minecraft)) {
             musicSyncSent = true;
             MusicNetwork.sendHostMusic();
         }
@@ -54,6 +55,11 @@ final class ClientMusicNetwork {
 
     static void sendHostState(boolean active) {
         MusicNetwork.sendHostState(active);
+    }
+
+    private static boolean canManageServerMusic(Minecraft minecraft) {
+        return minecraft.player != null && (minecraft.player.hasPermissions(2)
+                || minecraft.getSingleplayerServer() != null);
     }
 
     static void syncHostMusic() {
@@ -81,19 +87,30 @@ final class ClientMusicNetwork {
 
         incomingTracks.remove(key);
         try {
-            ResourceLocation track = CustomMusicPack.saveSynchronizedTrack(key, transfer.data);
-            Minecraft minecraft = Minecraft.getInstance();
-            minecraft.reloadResourcePacks().whenComplete((ignored, error) -> minecraft.execute(() -> {
-                if (error != null) {
-                    LogUtils.getLogger().error("Could not load synchronized AFK music {}", key, error);
-                    return;
-                }
-                loadedTracks.add(key);
-                if (key.equals(pendingTrack)) startPendingTrack(track);
-            }));
+            CustomMusicPack.saveSynchronizedTrack(key, transfer.data);
+            tracksAwaitingReload.add(key);
+            resourceReloadPending = true;
         } catch (IOException exception) {
             LogUtils.getLogger().error("Could not save synchronized AFK music {}", key, exception);
         }
+    }
+
+    static void finishTrackSync() {
+        if (!resourceReloadPending) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        Set<String> loadedAfterReload = new HashSet<>(tracksAwaitingReload);
+        tracksAwaitingReload.clear();
+        resourceReloadPending = false;
+        minecraft.reloadResourcePacks().whenComplete((ignored, error) -> minecraft.execute(() -> {
+            if (error != null) {
+                LogUtils.getLogger().error("Could not reload the synchronized AFK music pack", error);
+                return;
+            }
+            loadedTracks.addAll(loadedAfterReload);
+            if (pendingTrack != null && loadedTracks.contains(pendingTrack)) {
+                startPendingTrack(new ResourceLocation(AfkCinematicsMod.MOD_ID, "custom/" + pendingTrack));
+            }
+        }));
     }
 
     static void setPlayback(String key, boolean active) {
