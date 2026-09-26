@@ -42,6 +42,7 @@ final class MusicNetwork {
             () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals);
     private static final Map<String, UploadTransfer> uploadTransfers = new HashMap<>();
     private static UUID musicController;
+    private static UUID activeCinematicHost;
     private static String activeTrackKey;
     private static Path activeTrackPath;
     private static boolean playbackActive;
@@ -134,6 +135,7 @@ final class MusicNetwork {
     public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         uploadTransfers.keySet().removeIf(key -> key.startsWith(player.getUUID().toString() + ":"));
+        if (player.getUUID().equals(activeCinematicHost)) activeCinematicHost = null;
         if (player.getUUID().equals(musicController)) stopPlayback();
     }
 
@@ -142,12 +144,14 @@ final class MusicNetwork {
         ServerPlayer sender = context.getSender();
         context.enqueueWork(() -> {
             if (sender == null || !canControlServer(sender)) return;
-            if (!message.active || !ServerSettings.get().enabled() || !ServerSettings.get().musicEnabled()) {
+            if (!message.active) {
+                if (sender.getUUID().equals(activeCinematicHost)) activeCinematicHost = null;
                 if (sender.getUUID().equals(musicController)) stopPlayback();
                 return;
             }
-            if (playbackActive) return;
-            startPlayback(sender);
+            if (!ServerSettings.get().enabled() || !ServerSettings.get().musicEnabled()) return;
+            activeCinematicHost = sender.getUUID();
+            if (!playbackActive) startPlayback(sender);
         });
         context.setPacketHandled(true);
     }
@@ -159,7 +163,12 @@ final class MusicNetwork {
             if (sender == null || !canControlServer(sender)) return;
             ServerSettings.set(message.settings);
             broadcastSettings();
-            if (!ServerSettings.get().enabled() || !ServerSettings.get().musicEnabled()) stopPlayback();
+            if (!ServerSettings.get().enabled() || !ServerSettings.get().musicEnabled()) {
+                stopPlayback();
+            } else if (!playbackActive && activeCinematicHost != null) {
+                ServerPlayer host = sender.getServer().getPlayerList().getPlayer(activeCinematicHost);
+                if (host != null) startPlayback(host);
+            }
         });
         context.setPacketHandled(true);
     }
@@ -229,6 +238,11 @@ final class MusicNetwork {
                 // Keep the current server playlist if filesystem synchronization fails.
             }
             broadcastServerMusic(sender.getServer());
+            if (!playbackActive && activeCinematicHost != null
+                    && ServerSettings.get().enabled() && ServerSettings.get().musicEnabled()) {
+                ServerPlayer host = sender.getServer().getPlayerList().getPlayer(activeCinematicHost);
+                if (host != null) startPlayback(host);
+            }
         });
         context.setPacketHandled(true);
     }
