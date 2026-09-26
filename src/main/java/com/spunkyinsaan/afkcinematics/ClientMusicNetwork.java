@@ -80,6 +80,7 @@ final class ClientMusicNetwork {
 
     static void syncHostMusic() {
         musicSyncSent = true;
+        CustomMusicPack.refreshLocalTracks();
         MusicNetwork.sendHostMusic();
     }
 
