@@ -7,8 +7,6 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.CommandSourceStack;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.network.chat.Component;
-import net.minecraft.sounds.Music;
-import net.minecraft.sounds.Musics;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -78,6 +76,7 @@ public final class ClientEvents {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         modBus.addListener(ClientEvents::registerKeyMappings);
         CustomMusicPack.register(modBus);
+        ClientMusicNetwork.register();
         MinecraftForge.EVENT_BUS.register(INSTANCE);
     }
 
@@ -296,7 +295,7 @@ public final class ClientEvents {
         passiveMovementTicks = 0;
         director.setMotionLevel(motionLevel.name());
         director.start(minecraft);
-        playRandomCinematicMusic(minecraft);
+        ClientMusicNetwork.sendHostState(true);
     }
 
     private void stopDirector(Minecraft minecraft) {
@@ -306,7 +305,7 @@ public final class ClientEvents {
         suppressActivityTicks = 0;
         passiveMovementTicks = 0;
         director.stop(minecraft);
-        fadeOutCinematicMusic(minecraft);
+        ClientMusicNetwork.sendHostState(false);
     }
 
     boolean isEnabled() { return enabled; }
@@ -354,28 +353,6 @@ public final class ClientEvents {
 
     void requestManualStart() {
         forceStartRequested = true;
-    }
-
-    private void playRandomCinematicMusic(Minecraft minecraft) {
-        if (!musicEnabled || minecraft.level == null) return;
-        cancelMusicFadeOut(minecraft);
-        stopBackgroundMusic(minecraft);
-        java.util.List<net.minecraft.resources.ResourceLocation> customTracks = CustomMusicPack.getTracks();
-        Music selectedMusic;
-        if (!customTracks.isEmpty()) {
-            int index = java.util.concurrent.ThreadLocalRandom.current().nextInt(customTracks.size());
-            selectedMusic = CustomMusicPack.asMusic(customTracks.get(index));
-        } else {
-            Music[] pool = {Musics.GAME, Musics.CREATIVE, Musics.END, Musics.UNDER_WATER};
-            int index = java.util.concurrent.ThreadLocalRandom.current().nextInt(pool.length);
-            if (index == lastMusicIndex) index = (index + 1
-                    + java.util.concurrent.ThreadLocalRandom.current().nextInt(pool.length - 1)) % pool.length;
-            lastMusicIndex = index;
-            selectedMusic = pool[index];
-        }
-        ensureMusicAudible(minecraft);
-        minecraft.getMusicManager().startPlaying(selectedMusic);
-        cinematicMusicActive = true;
     }
 
     private void fadeOutCinematicMusic(Minecraft minecraft) {
@@ -463,6 +440,13 @@ public final class ClientEvents {
     }
 
     private void saveConfig() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null && minecraft.getConnection() != null) {
+            ClientMusicNetwork.sendHostSettings(new ServerSettings.Snapshot(
+                    enabled, getAfkTimeoutSeconds(), musicEnabled,
+                    motionLevel.name().toLowerCase(java.util.Locale.ROOT)));
+            return;
+        }
         Path path = FMLPaths.CONFIGDIR.get().resolve("afkcinematics.properties");
         Properties properties = new Properties();
         properties.setProperty("afk_timeout_seconds", Integer.toString(getAfkTimeoutSeconds()));
@@ -477,6 +461,35 @@ public final class ClientEvents {
         } catch (IOException ignored) {
             // Keep the client usable if the config directory is read-only.
         }
+    }
+
+    void applyServerSettings(ServerSettings.Snapshot snapshot) {
+        ServerSettings.Snapshot settings = snapshot.normalized();
+        enabled = settings.enabled();
+        musicEnabled = settings.musicEnabled();
+        afkTimeoutTicks = settings.afkTimeoutSeconds() * 20;
+        motionLevel = MotionLevel.from(settings.motionLevel());
+        director.setMotionLevel(motionLevel.name());
+        inactivityTicks = 0;
+        if (!enabled) {
+            forceStartRequested = false;
+            stopDirector(Minecraft.getInstance());
+        }
+        if (!musicEnabled) stopSynchronizedMusic();
+    }
+
+    void startSynchronizedMusic(net.minecraft.resources.ResourceLocation track) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!musicEnabled || minecraft.level == null) return;
+        cancelMusicFadeOut(minecraft);
+        stopBackgroundMusic(minecraft);
+        ensureMusicAudible(minecraft);
+        minecraft.getMusicManager().startPlaying(CustomMusicPack.asMusic(track));
+        cinematicMusicActive = true;
+    }
+
+    void stopSynchronizedMusic() {
+        stopCinematicMusic(Minecraft.getInstance());
     }
 
     enum MotionLevel {
