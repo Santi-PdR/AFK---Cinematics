@@ -7,6 +7,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.Music;
 import net.minecraft.sounds.Musics;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
@@ -54,6 +55,9 @@ public final class ClientEvents {
     private boolean cinematicActive;
     private boolean cinematicMusicActive;
     private int lastMusicIndex = -1;
+    private Float restoreMusicVolume;
+    private Float fadeStartMusicVolume;
+    private int musicFadeOutTicksRemaining;
     private boolean forceStartRequested;
     private Vec3 lastPosition;
 
@@ -213,19 +217,78 @@ public final class ClientEvents {
 
     private void playRandomCinematicMusic(Minecraft minecraft) {
         if (!musicEnabled || minecraft.level == null) return;
+        cancelMusicFadeOut(minecraft);
+        stopBackgroundMusic(minecraft);
         Music[] pool = {Musics.GAME, Musics.CREATIVE, Musics.END, Musics.UNDER_WATER};
         int index = java.util.concurrent.ThreadLocalRandom.current().nextInt(pool.length);
         if (index == lastMusicIndex) index = (index + 1
                 + java.util.concurrent.ThreadLocalRandom.current().nextInt(pool.length - 1)) % pool.length;
         lastMusicIndex = index;
+        ensureMusicAudible(minecraft);
         minecraft.getMusicManager().startPlaying(pool[index]);
         cinematicMusicActive = true;
     }
 
+    private void fadeOutCinematicMusic(Minecraft minecraft) {
+        if (!cinematicMusicActive) return;
+        if (musicFadeOutTicksRemaining <= 0) {
+            fadeStartMusicVolume = minecraft.options.getSoundSourceVolume(SoundSource.MUSIC);
+            musicFadeOutTicksRemaining = 20;
+        }
+    }
+
+    private void tickMusicFadeOut(Minecraft minecraft) {
+        if (!cinematicMusicActive || musicFadeOutTicksRemaining <= 0) return;
+        float startVolume = fadeStartMusicVolume != null ? fadeStartMusicVolume
+                : minecraft.options.getSoundSourceVolume(SoundSource.MUSIC);
+        musicFadeOutTicksRemaining--;
+        float remaining = musicFadeOutTicksRemaining / 20.0F;
+        minecraft.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set((double) (startVolume * remaining));
+        if (musicFadeOutTicksRemaining <= 0) {
+            stopBackgroundMusic(minecraft);
+            restoreMusicVolume(minecraft);
+            cinematicMusicActive = false;
+            fadeStartMusicVolume = null;
+        }
+    }
+
+    private void cancelMusicFadeOut(Minecraft minecraft) {
+        if (musicFadeOutTicksRemaining <= 0) return;
+        musicFadeOutTicksRemaining = 0;
+        if (fadeStartMusicVolume != null) {
+            minecraft.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set((double) fadeStartMusicVolume);
+            fadeStartMusicVolume = null;
+        } else {
+            restoreMusicVolume(minecraft);
+        }
+    }
+
     private void stopCinematicMusic(Minecraft minecraft) {
         if (!cinematicMusicActive) return;
-        minecraft.getMusicManager().stopPlaying();
+        musicFadeOutTicksRemaining = 0;
+        stopBackgroundMusic(minecraft);
+        restoreMusicVolume(minecraft);
         cinematicMusicActive = false;
+        fadeStartMusicVolume = null;
+    }
+
+    private void stopBackgroundMusic(Minecraft minecraft) {
+        minecraft.getMusicManager().stopPlaying();
+    }
+
+    private void ensureMusicAudible(Minecraft minecraft) {
+        if (restoreMusicVolume == null) {
+            restoreMusicVolume = minecraft.options.getSoundSourceVolume(SoundSource.MUSIC);
+        }
+        if (restoreMusicVolume < 1.0E-4F) {
+            minecraft.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(1.0D);
+        }
+    }
+
+    private void restoreMusicVolume(Minecraft minecraft) {
+        if (restoreMusicVolume == null) return;
+        minecraft.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set((double) restoreMusicVolume);
+        restoreMusicVolume = null;
     }
 
     private void loadConfig() {
