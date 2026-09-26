@@ -417,9 +417,8 @@ public final class ClientEvents {
         if (restoreMusicVolume == null) {
             restoreMusicVolume = minecraft.options.getSoundSourceVolume(SoundSource.MUSIC);
         }
-        if (restoreMusicVolume < 1.0E-4F) {
-            minecraft.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(1.0D);
-        }
+        float targetVolume = restoreMusicVolume < 1.0E-4F ? 0.6F : restoreMusicVolume * 0.6F;
+        minecraft.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set((double) targetVolume);
     }
 
     private void restoreMusicVolume(Minecraft minecraft) {
