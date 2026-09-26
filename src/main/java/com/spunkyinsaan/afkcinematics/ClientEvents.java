@@ -172,7 +172,7 @@ public final class ClientEvents {
                         .then(Commands.literal("high").executes(context -> setMotionLevel(context, MotionLevel.HIGH)))
                         .executes(context -> sendCommandFeedback(context,
                                 "AFK cinematic motion: " + motionLevel.displayName())))
-                .then(Commands.literal("about").executes(context -> sendAboutFeedback(context))
+                .then(Commands.literal("about").executes(context -> sendAboutFeedback(context)))
                 .executes(context -> sendCommandFeedback(context,
                         "Usage: /afkc start | /afkc time <seconds> | /afkc music on|off | "
                                 + "/afkc motion <default|low|medium|high> | /afkc about")));
