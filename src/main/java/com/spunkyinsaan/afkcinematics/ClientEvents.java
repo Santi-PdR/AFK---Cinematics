@@ -172,7 +172,7 @@ public final class ClientEvents {
 
     private int setMotionLevel(CommandContext<CommandSourceStack> context, MotionLevel level) {
         motionLevel = level;
-        director.setMotionLevel(level);
+        director.setMotionLevel(level.name());
         saveConfig();
         return sendCommandFeedback(context, "Cinematic motion set to " + level.displayName() + ".");
     }
