@@ -228,7 +228,7 @@ final class MusicNetwork {
             } catch (IOException ignored) {
                 // Keep the current server playlist if filesystem synchronization fails.
             }
-            broadcastServerMusic();
+            broadcastServerMusic(sender.getServer());
         });
         context.setPacketHandled(true);
     }
@@ -262,7 +262,7 @@ final class MusicNetwork {
         NetworkEvent.Context context = supplier.get();
         context.enqueueWork(() -> net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(
                 net.minecraftforge.api.distmarker.Dist.CLIENT,
-                ClientMusicNetwork::finishTrackSync));
+                () -> ClientMusicNetwork::finishTrackSync));
         context.setPacketHandled(true);
     }
 
@@ -312,9 +312,9 @@ final class MusicNetwork {
         }
     }
 
-    private static void broadcastServerMusic() {
-        for (ServerPlayer player : net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer()
-                .getPlayerList().getPlayers()) {
+    private static void broadcastServerMusic(MinecraftServer server) {
+        if (server == null) return;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             sendAllTracksToPlayer(player);
         }
     }
