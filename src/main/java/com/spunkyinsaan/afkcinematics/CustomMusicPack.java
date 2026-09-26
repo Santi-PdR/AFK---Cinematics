@@ -1,0 +1,141 @@
+package com.spunkyinsaan.afkcinematics;
+
+import com.mojang.logging.LogUtils;
+import net.minecraft.core.Holder;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.PackResources;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.PathPackResources;
+import net.minecraft.server.packs.repository.Pack;
+import net.minecraft.server.packs.repository.PackSource;
+import net.minecraftforge.event.AddPackFindersEvent;
+import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraft.sounds.Music;
+import net.minecraft.sounds.SoundEvent;
+import org.slf4j.Logger;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.function.Consumer;
+
+final class CustomMusicPack {
+    private static final Logger LOGGER = LogUtils.getLogger();
+    private static final String MOD_ID = "afkcinematics";
+    private static final String PACK_ID = "afkcinematics_custom_music";
+    private static final Path CONFIG_DIRECTORY = FMLPaths.CONFIGDIR.get().resolve("afkcinematics");
+    private static final Path MUSIC_DIRECTORY = CONFIG_DIRECTORY.resolve("music");
+    private static final Path PACK_DIRECTORY = CONFIG_DIRECTORY.resolve("music_resource_pack");
+    private static volatile List<ResourceLocation> tracks = List.of();
+
+    private CustomMusicPack() {}
+
+    static void register(IEventBus modBus) {
+        try {
+            Files.createDirectories(MUSIC_DIRECTORY);
+            prepareMusicPack();
+        } catch (IOException exception) {
+            LOGGER.error("Could not prepare the AFK Cinematics music folder", exception);
+        }
+        modBus.addListener(CustomMusicPack::addPackFinder);
+    }
+
+    static Path getMusicDirectory() {
+        return MUSIC_DIRECTORY;
+    }
+
+    static List<ResourceLocation> getTracks() {
+        return tracks;
+    }
+
+    static Music asMusic(ResourceLocation track) {
+        SoundEvent sound = SoundEvent.createVariableRangeEvent(track);
+        return new Music(Holder.direct(sound), 0, 0, true);
+    }
+
+    private static void addPackFinder(AddPackFindersEvent event) {
+        if (event.getPackType() != PackType.CLIENT_RESOURCES) return;
+        try {
+            prepareMusicPack();
+            Pack pack = Pack.readMetaAndCreate(
+                    PACK_ID,
+                    Component.literal("AFK Cinematics Custom Music"),
+                    true,
+                    new Pack.ResourcesSupplier() {
+                        @Override
+                        public PackResources open(String id) {
+                            return new PathPackResources(id, PACK_DIRECTORY, false);
+                        }
+                    },
+                    PackType.CLIENT_RESOURCES,
+                    Pack.Position.TOP,
+                    PackSource.BUILT_IN);
+            if (pack != null) {
+                event.addRepositorySource((Consumer<Consumer<Pack>>) consumer -> consumer.accept(pack));
+            }
+        } catch (IOException exception) {
+            LOGGER.error("Could not load custom AFK Cinematics music", exception);
+        }
+    }
+
+    private static void prepareMusicPack() throws IOException {
+        Path musicAssets = PACK_DIRECTORY.resolve("assets").resolve(MOD_ID);
+        Path soundsDirectory = musicAssets.resolve("sounds");
+        Path customSoundsDirectory = soundsDirectory.resolve("custom");
+        Files.createDirectories(MUSIC_DIRECTORY);
+        Files.createDirectories(customSoundsDirectory);
+
+        try (var files = Files.list(customSoundsDirectory)) {
+            files.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".ogg"))
+                    .forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (IOException exception) {
+                            LOGGER.warn("Could not remove old generated music file {}", path, exception);
+                        }
+                    });
+        }
+
+        List<ResourceLocation> foundTracks = new ArrayList<>();
+        Set<String> usedNames = new HashSet<>();
+        StringBuilder soundsJson = new StringBuilder("{\n");
+        try (var files = Files.list(MUSIC_DIRECTORY)) {
+            List<Path> musicFiles = files.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".ogg"))
+                    .sorted(Comparator.comparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT)))
+                    .toList();
+            for (Path musicFile : musicFiles) {
+                String filename = musicFile.getFileName().toString();
+                String basename = filename.substring(0, filename.length() - 4).toLowerCase(Locale.ROOT)
+                        .replaceAll("[^a-z0-9._-]", "_");
+                if (basename.isBlank() || !usedNames.add(basename)) continue;
+
+                String soundPath = "custom/" + basename;
+                Path target = customSoundsDirectory.resolve(basename + ".ogg");
+                Files.copy(musicFile, target, StandardCopyOption.REPLACE_EXISTING);
+                if (!foundTracks.isEmpty()) soundsJson.append(",\n");
+                soundsJson.append("  \\"").append(soundPath).append("\\": {\\"sounds\\": [{")
+                        .append("\\"name\\": \\"").append(MOD_ID).append(":").append(soundPath)
+                        .append("\\", \\"stream\\": true}]}");
+                foundTracks.add(new ResourceLocation(MOD_ID, soundPath));
+            }
+        }
+        soundsJson.append("\n}\n");
+        Files.writeString(musicAssets.resolve("sounds.json"), soundsJson, StandardCharsets.UTF_8);
+        Files.writeString(PACK_DIRECTORY.resolve("pack.mcmeta"),
+                "{\n  \\"pack\\": {\n    \\"pack_format\\": 15,\n    \\"description\\": \\"AFK Cinematics custom music\\"\n  }\n}\n",
+                StandardCharsets.UTF_8);
+        tracks = List.copyOf(foundTracks);
+    }
+}
