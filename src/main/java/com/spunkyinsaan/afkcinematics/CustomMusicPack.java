@@ -75,6 +75,14 @@ final class CustomMusicPack {
         return localTracks;
     }
 
+    static void refreshLocalTracks() {
+        try {
+            localTracks = List.copyOf(findLocalTracks());
+        } catch (IOException exception) {
+            LOGGER.error("Could not refresh local AFK Cinematics music", exception);
+        }
+    }
+
     static Music asMusic() {
         ResourceLocation event = new ResourceLocation(MOD_ID, "custom/" + ACTIVE_TRACK);
         SoundEvent sound = SoundEvent.createVariableRangeEvent(event);
@@ -159,7 +167,7 @@ final class CustomMusicPack {
         JsonObject metadata = new JsonObject();
         metadata.add("pack", pack);
         Files.writeString(PACK_DIRECTORY.resolve("pack.mcmeta"), GSON.toJson(metadata), StandardCharsets.UTF_8);
-        localTracks = List.copyOf(findLocalTracks());
+        refreshLocalTracks();
     }
 
     private static List<ResourceLocation> findLocalTracks() throws IOException {
