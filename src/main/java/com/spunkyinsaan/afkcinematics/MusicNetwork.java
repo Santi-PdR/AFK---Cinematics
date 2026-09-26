@@ -51,23 +51,23 @@ final class MusicNetwork {
     static void register() {
         int id = 0;
         CHANNEL.registerMessage(id++, HostStateMessage.class, HostStateMessage::encode,
-                HostStateMessage::decode, MusicNetwork::handleHostState, Optional.of(NetworkDirection.PLAY_TO_SERVER));
+                HostStateMessage::decode, MusicNetwork::handleHostState, Optional.of(Optional.of(NetworkDirection.PLAY_TO_SERVER)));
         CHANNEL.registerMessage(id++, HostSettingsMessage.class, HostSettingsMessage::encode,
-                HostSettingsMessage::decode, MusicNetwork::handleHostSettings, NetworkDirection.PLAY_TO_SERVER);
+                HostSettingsMessage::decode, MusicNetwork::handleHostSettings, Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, MusicUploadStartMessage.class, MusicUploadStartMessage::encode,
-                MusicUploadStartMessage::decode, MusicNetwork::handleUploadStart, NetworkDirection.PLAY_TO_SERVER);
+                MusicUploadStartMessage::decode, MusicNetwork::handleUploadStart, Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, MusicUploadChunkMessage.class, MusicUploadChunkMessage::encode,
-                MusicUploadChunkMessage::decode, MusicNetwork::handleUploadChunk, NetworkDirection.PLAY_TO_SERVER);
+                MusicUploadChunkMessage::decode, MusicNetwork::handleUploadChunk, Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, MusicManifestMessage.class, MusicManifestMessage::encode,
-                MusicManifestMessage::decode, MusicNetwork::handleMusicManifest, NetworkDirection.PLAY_TO_SERVER);
+                MusicManifestMessage::decode, MusicNetwork::handleMusicManifest, Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, ServerSettingsMessage.class, ServerSettingsMessage::encode,
-                ServerSettingsMessage::decode, MusicNetwork::handleServerSettings, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+                ServerSettingsMessage::decode, MusicNetwork::handleServerSettings, Optional.of(Optional.of(NetworkDirection.PLAY_TO_CLIENT)));
         CHANNEL.registerMessage(id++, TrackStartMessage.class, TrackStartMessage::encode,
-                TrackStartMessage::decode, MusicNetwork::handleTrackStart, NetworkDirection.PLAY_TO_CLIENT);
+                TrackStartMessage::decode, MusicNetwork::handleTrackStart, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(id++, TrackChunkMessage.class, TrackChunkMessage::encode,
-                TrackChunkMessage::decode, MusicNetwork::handleTrackChunk, NetworkDirection.PLAY_TO_CLIENT);
+                TrackChunkMessage::decode, MusicNetwork::handleTrackChunk, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(id, PlaybackMessage.class, PlaybackMessage::encode,
-                PlaybackMessage::decode, MusicNetwork::handlePlayback, NetworkDirection.PLAY_TO_CLIENT);
+                PlaybackMessage::decode, MusicNetwork::handlePlayback, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(MusicNetwork.class);
         try {
             Files.createDirectories(SERVER_MUSIC_DIRECTORY);
