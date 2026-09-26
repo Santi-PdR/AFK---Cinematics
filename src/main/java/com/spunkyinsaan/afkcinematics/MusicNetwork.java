@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -50,7 +51,7 @@ final class MusicNetwork {
     static void register() {
         int id = 0;
         CHANNEL.registerMessage(id++, HostStateMessage.class, HostStateMessage::encode,
-                HostStateMessage::decode, MusicNetwork::handleHostState, NetworkDirection.PLAY_TO_SERVER);
+                HostStateMessage::decode, MusicNetwork::handleHostState, Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, HostSettingsMessage.class, HostSettingsMessage::encode,
                 HostSettingsMessage::decode, MusicNetwork::handleHostSettings, NetworkDirection.PLAY_TO_SERVER);
         CHANNEL.registerMessage(id++, MusicUploadStartMessage.class, MusicUploadStartMessage::encode,
@@ -60,7 +61,7 @@ final class MusicNetwork {
         CHANNEL.registerMessage(id++, MusicManifestMessage.class, MusicManifestMessage::encode,
                 MusicManifestMessage::decode, MusicNetwork::handleMusicManifest, NetworkDirection.PLAY_TO_SERVER);
         CHANNEL.registerMessage(id++, ServerSettingsMessage.class, ServerSettingsMessage::encode,
-                ServerSettingsMessage::decode, MusicNetwork::handleServerSettings, NetworkDirection.PLAY_TO_CLIENT);
+                ServerSettingsMessage::decode, MusicNetwork::handleServerSettings, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(id++, TrackStartMessage.class, TrackStartMessage::encode,
                 TrackStartMessage::decode, MusicNetwork::handleTrackStart, NetworkDirection.PLAY_TO_CLIENT);
         CHANNEL.registerMessage(id++, TrackChunkMessage.class, TrackChunkMessage::encode,
