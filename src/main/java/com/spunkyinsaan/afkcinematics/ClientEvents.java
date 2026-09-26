@@ -77,6 +77,7 @@ public final class ClientEvents {
     static void register() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         modBus.addListener(ClientEvents::registerKeyMappings);
+        CustomMusicPack.register(modBus);
         MinecraftForge.EVENT_BUS.register(INSTANCE);
     }
 
@@ -359,13 +360,21 @@ public final class ClientEvents {
         if (!musicEnabled || minecraft.level == null) return;
         cancelMusicFadeOut(minecraft);
         stopBackgroundMusic(minecraft);
-        Music[] pool = {Musics.GAME, Musics.CREATIVE, Musics.END, Musics.UNDER_WATER};
-        int index = java.util.concurrent.ThreadLocalRandom.current().nextInt(pool.length);
-        if (index == lastMusicIndex) index = (index + 1
-                + java.util.concurrent.ThreadLocalRandom.current().nextInt(pool.length - 1)) % pool.length;
-        lastMusicIndex = index;
+        List<net.minecraft.resources.ResourceLocation> customTracks = CustomMusicPack.getTracks();
+        Music selectedMusic;
+        if (!customTracks.isEmpty()) {
+            int index = java.util.concurrent.ThreadLocalRandom.current().nextInt(customTracks.size());
+            selectedMusic = CustomMusicPack.asMusic(customTracks.get(index));
+        } else {
+            Music[] pool = {Musics.GAME, Musics.CREATIVE, Musics.END, Musics.UNDER_WATER};
+            int index = java.util.concurrent.ThreadLocalRandom.current().nextInt(pool.length);
+            if (index == lastMusicIndex) index = (index + 1
+                    + java.util.concurrent.ThreadLocalRandom.current().nextInt(pool.length - 1)) % pool.length;
+            lastMusicIndex = index;
+            selectedMusic = pool[index];
+        }
         ensureMusicAudible(minecraft);
-        minecraft.getMusicManager().startPlaying(pool[index]);
+        minecraft.getMusicManager().startPlaying(selectedMusic);
         cinematicMusicActive = true;
     }
 
