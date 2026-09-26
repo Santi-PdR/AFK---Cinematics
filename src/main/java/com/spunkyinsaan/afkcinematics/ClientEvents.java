@@ -102,6 +102,7 @@ public final class ClientEvents {
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft minecraft = Minecraft.getInstance();
+        tickMusicFadeOut(minecraft);
         if (minecraft.player == null || minecraft.level == null || minecraft.isPaused()) {
             stopDirector(minecraft);
             inactivityTicks = 0;
@@ -176,7 +177,7 @@ public final class ClientEvents {
         startGraceTicks = 0;
         passiveMovementTicks = 0;
         director.stop(minecraft);
-        stopCinematicMusic(minecraft);
+        fadeOutCinematicMusic(minecraft);
     }
 
     boolean isEnabled() { return enabled; }
@@ -196,6 +197,7 @@ public final class ClientEvents {
 
     void setMusicEnabled(boolean value) {
         musicEnabled = value;
+        if (!value) fadeOutCinematicMusic(Minecraft.getInstance());
         saveConfig();
     }
 
