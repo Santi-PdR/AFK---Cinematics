@@ -1,0 +1,19 @@
+{
+  "category.afkcinematics": "AFK Cinematics",
+  "key.categories.afkcinematics": "AFK Cinematics",
+  "key.afkcinematics.open_settings": "Abrir configuración de AFK Cinematics",
+  "key.afkcinematics.toggle_enabled": "Activar o desactivar AFK Cinematics",
+  "screen.afkcinematics.title": "Configuración de AFK Cinematics",
+  "screen.afkcinematics.enabled": "AFK Cinematics: %s",
+  "screen.afkcinematics.music": "Música cinemática: %s",
+  "screen.afkcinematics.motion": "Movimiento de cámara: %s",
+  "screen.afkcinematics.afk_time": "Tiempo AFK: %s segundos",
+  "screen.afkcinematics.start_now": "Iniciar ahora",
+  "screen.afkcinematics.open_music_folder": "Abrir carpeta de música",
+  "screen.afkcinematics.sync_music": "Sincronizar música del host",
+  "screen.afkcinematics.about": "Acerca de",
+  "screen.afkcinematics.open_key": "Tecla de configuración: %s",
+  "screen.afkcinematics.toggle_key": "Tecla para activar AFK: %s",
+  "screen.afkcinematics.on": "ACTIVADO",
+  "screen.afkcinematics.off": "DESACTIVADO"
+}
