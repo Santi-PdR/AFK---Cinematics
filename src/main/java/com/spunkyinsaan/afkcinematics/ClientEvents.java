@@ -35,18 +35,22 @@ public final class ClientEvents {
             "key.afkcinematics.toggle_enabled", InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_UNKNOWN, "key.categories.afkcinematics");
 
+    private final CinematicDirector director = new CinematicDirector();
     private boolean enabled = true;
     private boolean musicEnabled = true;
     private MotionLevel motionLevel = MotionLevel.DEFAULT;
     private int afkTimeoutTicks = DEFAULT_AFK_TICKS;
     private int inactivityTicks;
+    private int startGraceTicks;
+    private int passiveMovementTicks;
     private boolean activityPending;
     private boolean cinematicActive;
+    private boolean forceStartRequested;
     private Vec3 lastPosition;
-    private int startGraceTicks;
 
     private ClientEvents() {
         loadConfig();
+        director.setMotionLevel(motionLevel);
     }
 
     static void register() {
@@ -54,6 +58,8 @@ public final class ClientEvents {
         modBus.addListener(ClientEvents::registerKeyMappings);
         MinecraftForge.EVENT_BUS.register(INSTANCE);
     }
+
+    static ClientEvents instance() { return INSTANCE; }
 
     private static void registerKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(OPEN_SETTINGS);
@@ -84,9 +90,10 @@ public final class ClientEvents {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null || minecraft.isPaused()) {
+            stopDirector(minecraft);
             inactivityTicks = 0;
-            cinematicActive = false;
             lastPosition = null;
+            activityPending = false;
             return;
         }
 
@@ -94,36 +101,67 @@ public final class ClientEvents {
         while (TOGGLE_ENABLED.consumeClick()) setEnabled(!enabled);
 
         Vec3 position = minecraft.player.position();
-        boolean moved = lastPosition != null && position.distanceToSqr(lastPosition) > MOVEMENT_EPSILON_SQUARED;
+        double movementSquared = lastPosition == null ? 0.0 : position.distanceToSqr(lastPosition);
+        boolean moved = movementSquared > MOVEMENT_EPSILON_SQUARED;
         boolean input = activityPending;
         activityPending = false;
 
-        if (!enabled) {
-            cinematicActive = false;
+        if (!enabled || minecraft.screen != null) {
             inactivityTicks = 0;
-        } else if (minecraft.screen != null) {
-            cinematicActive = false;
-            inactivityTicks = 0;
-        } else if (input) {
-            cinematicActive = false;
-            inactivityTicks = 0;
-        } else if (moved && cinematicActive) {
-            double displacement = position.distanceToSqr(lastPosition);
-            if (displacement >= PASSIVE_REPOSITION_LIMIT_SQUARED) {
-                // Server corrections and passive repositioning refresh the scene without
-                // treating every small correction as a player deliberately leaving AFK.
-                startGraceTicks = 60;
-            }
+            stopDirector(minecraft);
+        } else if (forceStartRequested) {
+            forceStartRequested = false;
             inactivityTicks = afkTimeoutTicks;
+            startDirector(minecraft);
+        } else if (cinematicActive && input) {
+            inactivityTicks = 0;
+            stopDirector(minecraft);
+        } else if (cinematicActive && moved) {
+            if (startGraceTicks > 0 && movementSquared <= 0.36) {
+                startGraceTicks--;
+            } else {
+                passiveMovementTicks++;
+                if (movementSquared >= PASSIVE_REPOSITION_LIMIT_SQUARED || passiveMovementTicks >= 5) {
+                    director.refreshAfterPassiveMovement(minecraft);
+                    passiveMovementTicks = 0;
+                    startGraceTicks = 60;
+                }
+            }
+        } else if (input || moved) {
+            inactivityTicks = 0;
         } else {
             inactivityTicks = Math.min(inactivityTicks + 1, afkTimeoutTicks);
-            if (!cinematicActive && inactivityTicks >= afkTimeoutTicks) {
-                cinematicActive = true;
-                startGraceTicks = 60;
-            }
+            if (!cinematicActive && inactivityTicks >= afkTimeoutTicks) startDirector(minecraft);
         }
-        if (startGraceTicks > 0) startGraceTicks--;
+
+        if (cinematicActive) director.tick(minecraft);
         lastPosition = position;
+        if (startGraceTicks > 0 && !moved) startGraceTicks--;
+    }
+
+    void renderCinematicOverlay(net.minecraft.client.gui.GuiGraphics graphics) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.getWindow() != null) {
+            director.renderOverlay(graphics, minecraft.getWindow().getGuiScaledWidth(),
+                    minecraft.getWindow().getGuiScaledHeight());
+        }
+    }
+
+    private void startDirector(Minecraft minecraft) {
+        if (!enabled || cinematicActive) return;
+        cinematicActive = true;
+        startGraceTicks = 60;
+        passiveMovementTicks = 0;
+        director.setMotionLevel(motionLevel);
+        director.start(minecraft);
+    }
+
+    private void stopDirector(Minecraft minecraft) {
+        if (!cinematicActive && !director.isActive()) return;
+        cinematicActive = false;
+        startGraceTicks = 0;
+        passiveMovementTicks = 0;
+        director.stop(minecraft);
     }
 
     boolean isEnabled() { return enabled; }
@@ -148,6 +186,7 @@ public final class ClientEvents {
 
     void advanceMotionLevel() {
         motionLevel = MotionLevel.values()[(motionLevel.ordinal() + 1) % MotionLevel.values().length];
+        director.setMotionLevel(motionLevel);
         saveConfig();
     }
 
@@ -158,11 +197,7 @@ public final class ClientEvents {
     }
 
     void requestManualStart() {
-        if (enabled) {
-            inactivityTicks = afkTimeoutTicks;
-            cinematicActive = true;
-            startGraceTicks = 60;
-        }
+        if (enabled) forceStartRequested = true;
     }
 
     private void loadConfig() {
