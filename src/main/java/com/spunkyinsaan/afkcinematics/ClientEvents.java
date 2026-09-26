@@ -33,6 +33,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Style;
 
 public final class ClientEvents {
     private static final ClientEvents INSTANCE = new ClientEvents();
@@ -56,7 +59,7 @@ public final class ClientEvents {
     private int startGraceTicks;
     private int suppressActivityTicks;
     private int passiveMovementTicks;
-    private boolean activityPending;
+    private final AtomicBoolean activityPending = new AtomicBoolean(false);
     private boolean cinematicActive;
     private boolean cinematicMusicActive;
     private int lastMusicIndex = -1;
@@ -85,7 +88,7 @@ public final class ClientEvents {
     }
 
     public static void markInputActivity() {
-        INSTANCE.activityPending = true;
+        INSTANCE.activityPending.set(true);
     }
 
     @SubscribeEvent
@@ -169,10 +172,7 @@ public final class ClientEvents {
                         .then(Commands.literal("high").executes(context -> setMotionLevel(context, MotionLevel.HIGH)))
                         .executes(context -> sendCommandFeedback(context,
                                 "AFK cinematic motion: " + motionLevel.displayName())))
-                .then(Commands.literal("about").executes(context -> {
-                    Util.getPlatform().openUri("https://modrinth.com/user/spunkyinsaan");
-                    return sendCommandFeedback(context, "AFK Cinematics by Spunky Insaan.");
-                }))
+                .then(Commands.literal("about").executes(context -> sendAboutFeedback(context))
                 .executes(context -> sendCommandFeedback(context,
                         "Usage: /afkc start | /afkc time <seconds> | /afkc music on|off | "
                                 + "/afkc motion <default|low|medium|high> | /afkc about")));
@@ -183,6 +183,20 @@ public final class ClientEvents {
         director.setMotionLevel(level.name());
         saveConfig();
         return sendCommandFeedback(context, "Cinematic motion set to " + level.displayName() + ".");
+    }
+
+    private int sendAboutFeedback(CommandContext<CommandSourceStack> context) {
+        Component author = Component.literal("spunkyinsaan")
+                .withStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL,
+                        "https://modrinth.com/user/spunkyinsaan")).withUnderlined(true));
+        Component message = Component.literal(
+                "AFK Cinematics - automatic cinematic AFK camera mod. Made by ").append(author);
+        return sendCommandFeedback(context, message);
+    }
+
+    private int sendCommandFeedback(CommandContext<CommandSourceStack> context, Component message) {
+        context.getSource().sendSuccess(() -> message, false);
+        return 1;
     }
 
     private int sendCommandFeedback(CommandContext<CommandSourceStack> context, String message) {
@@ -206,7 +220,7 @@ public final class ClientEvents {
             startGraceTicks = 0;
             passiveMovementTicks = 0;
             lastPosition = null;
-            activityPending = false;
+            activityPending.set(false);
             return;
         }
         tickMusicFadeOut(minecraft);
@@ -214,8 +228,7 @@ public final class ClientEvents {
         Vec3 position = minecraft.player.position();
         double movementSquared = lastPosition == null ? 0.0 : position.distanceToSqr(lastPosition);
         boolean moved = movementSquared > MOVEMENT_EPSILON_SQUARED;
-        boolean input = activityPending;
-        activityPending = false;
+        boolean input = activityPending.getAndSet(false);
         if (suppressActivityTicks > 0) {
             suppressActivityTicks--;
             input = false;
