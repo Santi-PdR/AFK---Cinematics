@@ -51,7 +51,7 @@ final class MusicNetwork {
     static void register() {
         int id = 0;
         CHANNEL.registerMessage(id++, HostStateMessage.class, HostStateMessage::encode,
-                HostStateMessage::decode, MusicNetwork::handleHostState, Optional.of(Optional.of(NetworkDirection.PLAY_TO_SERVER)));
+                HostStateMessage::decode, MusicNetwork::handleHostState, Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, HostSettingsMessage.class, HostSettingsMessage::encode,
                 HostSettingsMessage::decode, MusicNetwork::handleHostSettings, Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, MusicUploadStartMessage.class, MusicUploadStartMessage::encode,
@@ -61,7 +61,7 @@ final class MusicNetwork {
         CHANNEL.registerMessage(id++, MusicManifestMessage.class, MusicManifestMessage::encode,
                 MusicManifestMessage::decode, MusicNetwork::handleMusicManifest, Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, ServerSettingsMessage.class, ServerSettingsMessage::encode,
-                ServerSettingsMessage::decode, MusicNetwork::handleServerSettings, Optional.of(Optional.of(NetworkDirection.PLAY_TO_CLIENT)));
+                ServerSettingsMessage::decode, MusicNetwork::handleServerSettings, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(id++, TrackStartMessage.class, TrackStartMessage::encode,
                 TrackStartMessage::decode, MusicNetwork::handleTrackStart, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(id++, TrackChunkMessage.class, TrackChunkMessage::encode,
