@@ -87,11 +87,11 @@ public final class AfkCinematicsSettingsScreen extends Screen {
             settings.setAfkTimeoutSeconds(valueToSeconds(this.value));
         }
 
-        private double secondsToValue(int seconds) {
+        private static double secondsToValue(int seconds) {
             return (Math.max(5, Math.min(1800, seconds)) - 5.0) / 1795.0;
         }
 
-        private int valueToSeconds(double value) {
+        private static int valueToSeconds(double value) {
             return (int) Math.round(5.0 + value * 1795.0);
         }
     }
