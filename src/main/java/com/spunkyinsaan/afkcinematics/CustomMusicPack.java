@@ -21,6 +21,7 @@ import net.minecraftforge.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -145,7 +146,12 @@ final class CustomMusicPack {
         Files.createDirectories(GENERATED_SOUNDS_DIRECTORY);
 
         Path activeSound = GENERATED_SOUNDS_DIRECTORY.resolve(ACTIVE_TRACK + ".ogg");
-        if (!Files.exists(activeSound)) Files.createFile(activeSound);
+        if (!Files.isRegularFile(activeSound) || Files.size(activeSound) == 0) {
+            try (InputStream placeholder = CustomMusicPack.class.getResourceAsStream("/afkcinematics_music_silence.ogg")) {
+                if (placeholder == null) throw new IOException("Bundled placeholder audio is missing");
+                Files.copy(placeholder, activeSound, StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
 
         JsonObject sound = new JsonObject();
         sound.addProperty("name", MOD_ID + ":custom/" + ACTIVE_TRACK);
