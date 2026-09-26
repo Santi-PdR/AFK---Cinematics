@@ -8,6 +8,8 @@ public final class AfkCinematicsMod {
     public static final String MOD_ID = "afkcinematics";
 
     public AfkCinematicsMod() {
+        ServerSettings.initialize();
+        MusicNetwork.register();
         DistExecutor.safeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
                 () -> ClientEvents::register);
     }
