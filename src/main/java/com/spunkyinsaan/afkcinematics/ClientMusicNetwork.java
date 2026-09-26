@@ -1,5 +1,6 @@
 package com.spunkyinsaan.afkcinematics;
 
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
@@ -84,14 +85,14 @@ final class ClientMusicNetwork {
             Minecraft minecraft = Minecraft.getInstance();
             minecraft.reloadResourcePacks().whenComplete((ignored, error) -> minecraft.execute(() -> {
                 if (error != null) {
-                    minecraft.getLogger().error("Could not load synchronized AFK music {}", key, error);
+                    LogUtils.getLogger().error("Could not load synchronized AFK music {}", key, error);
                     return;
                 }
                 loadedTracks.add(key);
                 if (key.equals(pendingTrack)) startPendingTrack(track);
             }));
         } catch (IOException exception) {
-            Minecraft.getInstance().getLogger().error("Could not save synchronized AFK music {}", key, exception);
+            LogUtils.getLogger().error("Could not save synchronized AFK music {}", key, exception);
         }
     }
 
