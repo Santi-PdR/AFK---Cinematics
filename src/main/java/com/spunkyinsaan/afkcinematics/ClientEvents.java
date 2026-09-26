@@ -322,6 +322,7 @@ public final class ClientEvents {
     boolean isCinematicActive() { return cinematicActive; }
 
     void setEnabled(boolean value) {
+        if (!canEditSettings()) return;
         enabled = value;
         inactivityTicks = 0;
         if (!value) {
@@ -341,18 +342,21 @@ public final class ClientEvents {
     }
 
     void setMusicEnabled(boolean value) {
+        if (!canEditSettings()) return;
         musicEnabled = value;
         if (!value) stopCinematicMusic(Minecraft.getInstance());
         saveConfig();
     }
 
     void advanceMotionLevel() {
+        if (!canEditSettings()) return;
         motionLevel = MotionLevel.values()[(motionLevel.ordinal() + 1) % MotionLevel.values().length];
         director.setMotionLevel(motionLevel.name());
         saveConfig();
     }
 
     void setAfkTimeoutSeconds(int seconds) {
+        if (!canEditSettings()) return;
         afkTimeoutTicks = Math.max(1, Math.min(36000, seconds)) * 20;
         inactivityTicks = 0;
         saveConfig();
