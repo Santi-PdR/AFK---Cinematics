@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import net.minecraft.Util;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
@@ -56,6 +57,15 @@ final class CustomMusicPack {
 
     static Path getMusicDirectory() {
         return MUSIC_DIRECTORY;
+    }
+
+    static void openMusicFolder() {
+        try {
+            Files.createDirectories(MUSIC_DIRECTORY);
+            Util.getPlatform().openFile(MUSIC_DIRECTORY.toFile());
+        } catch (IOException exception) {
+            LOGGER.error("Could not open the AFK Cinematics music folder", exception);
+        }
     }
 
     static List<ResourceLocation> getTracks() {
