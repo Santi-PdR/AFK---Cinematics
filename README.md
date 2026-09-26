@@ -12,26 +12,30 @@ Forge port of AFK Cinematics, based on the supplied `afk-cinematics-1.0.5+26.2.j
 - Use `/afkc motion <default|low|medium|high>` to choose the motion level.
 - Use `/afkc about` for the author link.
 
-The settings screen also provides an inactivity slider from 5 to 1,800 seconds, music and motion controls, and a manual start button. Defaults are 25 seconds, enabled, music enabled, and default motion.
+When connected to a server, only the host (single-player owner) or an operator can change mod settings. The server stores those settings and sends them to each player on join and whenever they change. Clients follow the server's enabled state, AFK timeout, music setting, and camera motion setting.
 
-## Configuration
+## Server settings
 
-Settings are saved to `config/afkcinematics.properties`:
+The dedicated/integrated server saves the authoritative configuration to `config/afkcinematics-server.properties`:
 
 - `afk_timeout_seconds`
 - `afk_cinematics_enabled`
 - `cinematic_music_enabled`
 - `cinematic_motion_level`
 
+Use **J** as the host/operator to change these from the settings screen, or use the `/afkc` client commands while hosting. Clients can open the screen but cannot change host settings.
+
 ## Custom music
 
-Copy your music files in **OGG Vorbis** format into:
+The host places music in **OGG Vorbis** format in:
 
 ```
 config/afkcinematics/music/
 ```
 
-Open the folder from the settings screen with **J → Open Music Folder**. The mod chooses randomly from the OGG files in that folder during AFK cinematics. Restart Minecraft after adding or removing tracks so the custom resource pack can be refreshed. If the folder contains no OGG files, the mod keeps using Minecraft's built-in music.
+Open this folder using **J → Open Music Folder**, then press **Sync Host Music**. The host's playlist is copied to the server, and tracks are sent to clients by the mod when playback starts. Clients only need the mod installed; they do not need to add music files. The playlist syncs again when the host joins, and pressing the sync button after editing the folder applies additions and removals. AFK Cinematics does not fall back to Minecraft's vanilla music when the server playlist is empty.
+
+For single-player without a server connection, the mod can play OGG files directly from the same folder.
 
 ## Build
 
