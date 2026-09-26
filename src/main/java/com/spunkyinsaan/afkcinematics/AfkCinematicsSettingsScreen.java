@@ -40,11 +40,14 @@ public final class AfkCinematicsSettingsScreen extends Screen {
             settings.requestManualStart();
             this.onClose();
         }).bounds(left, top + 104, 106, 20).build());
+        this.addRenderableWidget(Button.builder(Component.translatable("screen.afkcinematics.open_music_folder"),
+                button -> CustomMusicPack.openMusicFolder())
+                .bounds(left, top + 128, width, 20).build());
         this.addRenderableWidget(Button.builder(Component.translatable("screen.afkcinematics.about"), button ->
                 Util.getPlatform().openUri("https://modrinth.com/user/spunkyinsaan"))
                 .bounds(left + 114, top + 104, 106, 20).build());
         this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> this.onClose())
-                .bounds(left, top + 144, width, 20).build());
+                .bounds(left, top + 152, width, 20).build());
     }
 
     private Component enabledLabel() {
