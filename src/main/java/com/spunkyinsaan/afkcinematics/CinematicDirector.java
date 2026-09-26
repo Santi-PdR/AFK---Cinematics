@@ -280,7 +280,7 @@ final class CinematicDirector {
     private Vec3 pickNearbyEntityOrFallback(Player player, Vec3 chest, ThreadLocalRandom random) {
         for (Entity entity : player.level().getEntities(player,
                 player.getBoundingBox().inflate(12.0),
-                e -> e.isAlive() && !e.isSpectator() && e != player && !e.isNoGravity())) {
+                e -> e.isAlive() && !e.isSpectator() && e != player)) {
             if (entity.position().distanceToSqr(chest) > 144.0) continue;
             return entity.position().add(0, entity.getBbHeight() * 0.55, 0);
         }
