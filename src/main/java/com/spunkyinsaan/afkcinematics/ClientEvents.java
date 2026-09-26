@@ -3,16 +3,30 @@ package com.spunkyinsaan.afkcinematics;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.InputEvent;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLPaths;
 import org.lwjgl.glfw.GLFW;
+
+import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Properties;
 
 public final class ClientEvents {
     private static final ClientEvents INSTANCE = new ClientEvents();
     private static final int DEFAULT_AFK_TICKS = 500;
+    private static final double MOVEMENT_EPSILON_SQUARED = 1.0E-4;
+    private static final double PASSIVE_REPOSITION_LIMIT_SQUARED = 4.0;
 
     private static final KeyMapping OPEN_SETTINGS = new KeyMapping(
             "key.afkcinematics.open_settings", InputConstants.Type.KEYSYM,
@@ -22,10 +36,18 @@ public final class ClientEvents {
             GLFW.GLFW_KEY_UNKNOWN, "key.categories.afkcinematics");
 
     private boolean enabled = true;
+    private boolean musicEnabled = true;
+    private MotionLevel motionLevel = MotionLevel.DEFAULT;
     private int afkTimeoutTicks = DEFAULT_AFK_TICKS;
     private int inactivityTicks;
+    private boolean activityPending;
+    private boolean cinematicActive;
+    private Vec3 lastPosition;
+    private int startGraceTicks;
 
-    private ClientEvents() {}
+    private ClientEvents() {
+        loadConfig();
+    }
 
     static void register() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -38,49 +60,184 @@ public final class ClientEvents {
         event.register(TOGGLE_ENABLED);
     }
 
-    @net.minecraftforge.eventbus.api.SubscribeEvent
+    static void markInputActivity() {
+        INSTANCE.activityPending = true;
+    }
+
+    @SubscribeEvent
+    public void onKeyInput(InputEvent.Key event) {
+        if (event.getAction() != GLFW.GLFW_RELEASE) markInputActivity();
+    }
+
+    @SubscribeEvent
+    public void onMouseButton(InputEvent.MouseButton event) {
+        if (event.getAction() != GLFW.GLFW_RELEASE) markInputActivity();
+    }
+
+    @SubscribeEvent
+    public void onMouseScroll(InputEvent.MouseScrollingEvent event) {
+        if (event.getScrollDelta() != 0) markInputActivity();
+    }
+
+    @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null || minecraft.isPaused()) {
             inactivityTicks = 0;
+            cinematicActive = false;
+            lastPosition = null;
             return;
         }
 
-        while (OPEN_SETTINGS.consumeClick()) {
-            minecraft.setScreen(new AfkCinematicsSettingsScreen(this));
-        }
-        while (TOGGLE_ENABLED.consumeClick()) {
-            enabled = !enabled;
+        while (OPEN_SETTINGS.consumeClick()) minecraft.setScreen(new AfkCinematicsSettingsScreen(this));
+        while (TOGGLE_ENABLED.consumeClick()) setEnabled(!enabled);
+
+        Vec3 position = minecraft.player.position();
+        boolean moved = lastPosition != null && position.distanceToSqr(lastPosition) > MOVEMENT_EPSILON_SQUARED;
+        boolean input = activityPending;
+        activityPending = false;
+
+        if (!enabled) {
+            cinematicActive = false;
             inactivityTicks = 0;
+        } else if (minecraft.screen != null) {
+            cinematicActive = false;
+            inactivityTicks = 0;
+        } else if (input) {
+            cinematicActive = false;
+            inactivityTicks = 0;
+        } else if (moved && cinematicActive) {
+            double displacement = position.distanceToSqr(lastPosition);
+            if (displacement >= PASSIVE_REPOSITION_LIMIT_SQUARED) {
+                // Server corrections and passive repositioning refresh the scene without
+                // treating every small correction as a player deliberately leaving AFK.
+                startGraceTicks = 60;
+            }
+            inactivityTicks = afkTimeoutTicks;
+        } else {
+            inactivityTicks = Math.min(inactivityTicks + 1, afkTimeoutTicks);
+            if (!cinematicActive && inactivityTicks >= afkTimeoutTicks) {
+                cinematicActive = true;
+                startGraceTicks = 60;
+            }
         }
-        if (!enabled) return;
-        inactivityTicks = Math.min(inactivityTicks + 1, afkTimeoutTicks);
+        if (startGraceTicks > 0) startGraceTicks--;
+        lastPosition = position;
     }
 
-    boolean isEnabled() {
-        return enabled;
-    }
+    boolean isEnabled() { return enabled; }
+    boolean isMusicEnabled() { return musicEnabled; }
+    MotionLevel getMotionLevel() { return motionLevel; }
+    int getAfkTimeoutSeconds() { return afkTimeoutTicks / 20; }
+    boolean isCinematicActive() { return cinematicActive; }
 
-    void toggleEnabled() {
-        enabled = !enabled;
+    void setEnabled(boolean value) {
+        enabled = value;
         inactivityTicks = 0;
+        if (!value) cinematicActive = false;
+        saveConfig();
     }
 
-    int getAfkTimeoutSeconds() {
-        return afkTimeoutTicks / 20;
+    void toggleEnabled() { setEnabled(!enabled); }
+
+    void setMusicEnabled(boolean value) {
+        musicEnabled = value;
+        saveConfig();
+    }
+
+    void advanceMotionLevel() {
+        motionLevel = MotionLevel.values()[(motionLevel.ordinal() + 1) % MotionLevel.values().length];
+        saveConfig();
     }
 
     void setAfkTimeoutSeconds(int seconds) {
-        afkTimeoutTicks = Math.max(5, Math.min(600, seconds)) * 20;
+        afkTimeoutTicks = Math.max(5, Math.min(1800, seconds)) * 20;
         inactivityTicks = 0;
+        saveConfig();
     }
 
     void requestManualStart() {
-        inactivityTicks = afkTimeoutTicks;
+        if (enabled) {
+            inactivityTicks = afkTimeoutTicks;
+            cinematicActive = true;
+            startGraceTicks = 60;
+        }
     }
 
-    boolean isCinematicActive() {
-        return enabled && inactivityTicks >= afkTimeoutTicks;
+    private void loadConfig() {
+        Path path = FMLPaths.CONFIGDIR.get().resolve("afkcinematics.properties");
+        if (!Files.exists(path)) {
+            saveConfig();
+            return;
+        }
+        Properties properties = new Properties();
+        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            properties.load(reader);
+            afkTimeoutTicks = Math.max(1, Math.min(36000,
+                    Integer.parseInt(properties.getProperty("afk_timeout_seconds", "25")))) * 20;
+            enabled = Boolean.parseBoolean(properties.getProperty("afk_cinematics_enabled", "true"));
+            musicEnabled = Boolean.parseBoolean(properties.getProperty("cinematic_music_enabled", "true"));
+            motionLevel = MotionLevel.from(properties.getProperty("cinematic_motion_level", "default"));
+        } catch (IOException | RuntimeException ignored) {
+            afkTimeoutTicks = DEFAULT_AFK_TICKS;
+            enabled = true;
+            musicEnabled = true;
+            motionLevel = MotionLevel.DEFAULT;
+        }
+    }
+
+    private void saveConfig() {
+        Path path = FMLPaths.CONFIGDIR.get().resolve("afkcinematics.properties");
+        Properties properties = new Properties();
+        properties.setProperty("afk_timeout_seconds", Integer.toString(getAfkTimeoutSeconds()));
+        properties.setProperty("afk_cinematics_enabled", Boolean.toString(enabled));
+        properties.setProperty("cinematic_music_enabled", Boolean.toString(musicEnabled));
+        properties.setProperty("cinematic_motion_level", motionLevel.name().toLowerCase(java.util.Locale.ROOT));
+        try {
+            Files.createDirectories(path.getParent());
+            try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
+                properties.store(writer, "AFK Cinematics settings");
+            }
+        } catch (IOException ignored) {
+            // Keep the client usable if the config directory is read-only.
+        }
+    }
+
+    enum MotionLevel {
+        DEFAULT, LOW, MEDIUM, HIGH;
+
+        static MotionLevel from(String value) {
+            if (value == null) return DEFAULT;
+            try { return valueOf(value.trim().toUpperCase(java.util.Locale.ROOT)); }
+            catch (IllegalArgumentException ignored) { return DEFAULT; }
+        }
+
+        double speedMultiplier() {
+            return switch (this) {
+                case DEFAULT -> 1.0;
+                case LOW -> 1.15;
+                case MEDIUM -> 1.35;
+                case HIGH -> 1.65;
+            };
+        }
+
+        double amplitudeMultiplier() {
+            return switch (this) {
+                case DEFAULT -> 1.0;
+                case LOW -> 1.12;
+                case MEDIUM -> 1.26;
+                case HIGH -> 1.45;
+            };
+        }
+
+        double shakeMultiplier() {
+            return switch (this) {
+                case DEFAULT -> 1.0;
+                case LOW -> 1.1;
+                case MEDIUM -> 1.25;
+                case HIGH -> 1.45;
+            };
+        }
     }
 }
