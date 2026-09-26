@@ -23,26 +23,35 @@ public final class AfkCinematicsSettingsScreen extends Screen {
         int top = this.height / 2 - 88;
         int width = 220;
         int left = center - width / 2;
+        boolean canEdit = settings.canEditSettings();
         this.addRenderableWidget(Button.builder(enabledLabel(), button -> {
             settings.toggleEnabled();
             button.setMessage(enabledLabel());
         }).bounds(left, top, width, 20).build());
+        this.children().get(this.children().size() - 1).active = canEdit;
         this.addRenderableWidget(Button.builder(musicLabel(), button -> {
             settings.setMusicEnabled(!settings.isMusicEnabled());
             button.setMessage(musicLabel());
         }).bounds(left, top + 24, width, 20).build());
+        this.children().get(this.children().size() - 1).active = canEdit;
         this.addRenderableWidget(Button.builder(motionLabel(), button -> {
             settings.advanceMotionLevel();
             button.setMessage(motionLabel());
         }).bounds(left, top + 48, width, 20).build());
-        this.addRenderableWidget(new AfkTimeSlider(left, top + 72, width, 20));
+        this.children().get(this.children().size() - 1).active = canEdit;
+        AfkTimeSlider slider = new AfkTimeSlider(left, top + 72, width, 20);
+        slider.active = canEdit;
+        this.addRenderableWidget(slider);
         this.addRenderableWidget(Button.builder(Component.translatable("screen.afkcinematics.start_now"), button -> {
             settings.requestManualStart();
             this.onClose();
         }).bounds(left, top + 104, 106, 20).build());
         this.addRenderableWidget(Button.builder(Component.translatable("screen.afkcinematics.open_music_folder"),
                 button -> CustomMusicPack.openMusicFolder())
-                .bounds(left, top + 128, width, 20).build());
+                .bounds(left, top + 128, 106, 20).build());
+        this.addRenderableWidget(Button.builder(Component.translatable("screen.afkcinematics.sync_music"),
+                button -> ClientMusicNetwork.syncHostMusic())
+                .bounds(left + 114, top + 128, 106, 20).build()).active = canEdit;
         this.addRenderableWidget(Button.builder(Component.translatable("screen.afkcinematics.about"), button ->
                 Util.getPlatform().openUri("https://modrinth.com/user/spunkyinsaan"))
                 .bounds(left + 114, top + 104, 106, 20).build());
