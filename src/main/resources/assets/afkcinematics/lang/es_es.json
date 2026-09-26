@@ -10,6 +10,7 @@
   "screen.afkcinematics.afk_time": "Tiempo AFK: %s segundos",
   "screen.afkcinematics.start_now": "Iniciar ahora",
   "screen.afkcinematics.open_music_folder": "Abrir carpeta de música",
+  "screen.afkcinematics.sync_music": "Sincronizar música del host",
   "screen.afkcinematics.about": "Acerca de",
   "screen.afkcinematics.open_key": "Tecla de configuración: %s",
   "screen.afkcinematics.toggle_key": "Tecla para activar AFK: %s",
