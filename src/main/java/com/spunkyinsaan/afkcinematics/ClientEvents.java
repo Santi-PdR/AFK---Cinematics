@@ -68,7 +68,7 @@ public final class ClientEvents {
 
     private ClientEvents() {
         loadConfig();
-        director.setMotionLevel(motionLevel);
+        director.setMotionLevel(motionLevel.name());
     }
 
     static void register() {
@@ -255,7 +255,7 @@ public final class ClientEvents {
         startGraceTicks = 60;
         suppressActivityTicks = 8;
         passiveMovementTicks = 0;
-        director.setMotionLevel(motionLevel);
+        director.setMotionLevel(motionLevel.name());
         director.start(minecraft);
         playRandomCinematicMusic(minecraft);
     }
@@ -293,7 +293,7 @@ public final class ClientEvents {
 
     void advanceMotionLevel() {
         motionLevel = MotionLevel.values()[(motionLevel.ordinal() + 1) % MotionLevel.values().length];
-        director.setMotionLevel(motionLevel);
+        director.setMotionLevel(motionLevel.name());
         saveConfig();
     }
 
