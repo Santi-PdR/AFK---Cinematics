@@ -13,6 +13,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 final class ClientMusicNetwork {
     private static final int CHUNK_SIZE = 32 * 1024;
@@ -23,6 +25,7 @@ final class ClientMusicNetwork {
     private static boolean resourceReloadPending;
     private static String pendingTrack;
     private static boolean musicSyncSent;
+    private static ResourceLocation lastSingleplayerTrack;
 
     private ClientMusicNetwork() {}
 
@@ -45,7 +48,7 @@ final class ClientMusicNetwork {
         Minecraft minecraft = Minecraft.getInstance();
         if (!musicSyncSent && canManageServerMusic(minecraft)) {
             musicSyncSent = true;
-            MusicNetwork.sendHostMusic();
+            if (minecraft.getSingleplayerServer() == null) MusicNetwork.sendHostMusic();
         }
     }
 
@@ -54,7 +57,24 @@ final class ClientMusicNetwork {
     }
 
     static void sendHostState(boolean active) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.getSingleplayerServer() != null) {
+            if (active) startSingleplayerMusic();
+            else ClientEvents.instance().stopSynchronizedMusic();
+        }
         MusicNetwork.sendHostState(active);
+    }
+
+    private static void startSingleplayerMusic() {
+        if (!ClientEvents.instance().isMusicEnabled()) return;
+        List<ResourceLocation> tracks = CustomMusicPack.getLocalTracks();
+        if (tracks.isEmpty()) return;
+        List<ResourceLocation> choices = tracks;
+        if (lastSingleplayerTrack != null && tracks.size() > 1) {
+            choices = tracks.stream().filter(track -> !track.equals(lastSingleplayerTrack)).toList();
+        }
+        lastSingleplayerTrack = choices.get(ThreadLocalRandom.current().nextInt(choices.size()));
+        ClientEvents.instance().startSynchronizedMusic(lastSingleplayerTrack);
     }
 
     private static boolean canManageServerMusic(Minecraft minecraft) {
