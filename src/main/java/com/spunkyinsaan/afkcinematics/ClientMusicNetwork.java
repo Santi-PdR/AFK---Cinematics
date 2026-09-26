@@ -1,0 +1,133 @@
+package com.spunkyinsaan.afkcinematics;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.common.MinecraftForge;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.BitSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+final class ClientMusicNetwork {
+    private static final int CHUNK_SIZE = 32 * 1024;
+    private static final int MAX_TRACK_BYTES = 32 * 1024 * 1024;
+    private static final Map<String, IncomingTrack> incomingTracks = new HashMap<>();
+    private static final Set<String> loadedTracks = new HashSet<>();
+    private static String pendingTrack;
+    private static boolean musicSyncSent;
+
+    private ClientMusicNetwork() {}
+
+    static void register() {
+        MinecraftForge.EVENT_BUS.register(ClientMusicNetwork.class);
+    }
+
+    @SubscribeEvent
+    public static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        incomingTracks.clear();
+        loadedTracks.clear();
+        pendingTrack = null;
+        musicSyncSent = false;
+    }
+
+    static void applySettings(ServerSettings.Snapshot settings) {
+        ClientEvents.instance().applyServerSettings(settings);
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!musicSyncSent && minecraft.player != null && minecraft.player.hasPermissions(2)) {
+            musicSyncSent = true;
+            MusicNetwork.sendHostMusic();
+        }
+    }
+
+    static void sendHostSettings(ServerSettings.Snapshot settings) {
+        MusicNetwork.sendHostSettings(settings);
+    }
+
+    static void sendHostState(boolean active) {
+        MusicNetwork.sendHostState(active);
+    }
+
+    static void syncHostMusic() {
+        musicSyncSent = true;
+        MusicNetwork.sendHostMusic();
+    }
+
+    static void beginTrack(String key, int size, int chunks) {
+        if (!validTrackKey(key) || size <= 0 || size > MAX_TRACK_BYTES
+                || chunks <= 0 || chunks != (size + CHUNK_SIZE - 1) / CHUNK_SIZE) return;
+        incomingTracks.put(key, new IncomingTrack(size, chunks));
+        loadedTracks.remove(key);
+    }
+
+    static void receiveTrackChunk(String key, int index, byte[] data) {
+        IncomingTrack transfer = incomingTracks.get(key);
+        if (transfer == null || index < 0 || index >= transfer.chunks || data.length > CHUNK_SIZE
+                || transfer.received.get(index)) return;
+        int offset = index * CHUNK_SIZE;
+        int expectedLength = Math.min(CHUNK_SIZE, transfer.data.length - offset);
+        if (data.length != expectedLength) return;
+        System.arraycopy(data, 0, transfer.data, offset, expectedLength);
+        transfer.received.set(index);
+        if (transfer.received.cardinality() != transfer.chunks) return;
+
+        incomingTracks.remove(key);
+        try {
+            ResourceLocation track = CustomMusicPack.saveSynchronizedTrack(key, transfer.data);
+            Minecraft minecraft = Minecraft.getInstance();
+            minecraft.reloadResourcePacks().whenComplete((ignored, error) -> minecraft.execute(() -> {
+                if (error != null) {
+                    minecraft.getLogger().error("Could not load synchronized AFK music {}", key, error);
+                    return;
+                }
+                loadedTracks.add(key);
+                if (key.equals(pendingTrack)) startPendingTrack(track);
+            }));
+        } catch (IOException exception) {
+            Minecraft.getInstance().getLogger().error("Could not save synchronized AFK music {}", key, exception);
+        }
+    }
+
+    static void setPlayback(String key, boolean active) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!active) {
+            pendingTrack = null;
+            ClientEvents.instance().stopSynchronizedMusic();
+            return;
+        }
+        if (!validTrackKey(key)) return;
+        pendingTrack = key;
+        if (loadedTracks.contains(key)) {
+            startPendingTrack(new ResourceLocation(AfkCinematicsMod.MOD_ID, "custom/" + key));
+        }
+    }
+
+    private static void startPendingTrack(ResourceLocation track) {
+        if (pendingTrack == null || !track.getPath().equals("custom/" + pendingTrack)) return;
+        if (!ClientEvents.instance().isMusicEnabled()) return;
+        ClientEvents.instance().startSynchronizedMusic(track);
+    }
+
+    private static boolean validTrackKey(String key) {
+        return key != null && key.matches("server_[a-z0-9._-]{1,64}");
+    }
+
+    private static final class IncomingTrack {
+        final byte[] data;
+        final int chunks;
+        final BitSet received;
+
+        IncomingTrack(int size, int chunks) {
+            this.data = new byte[size];
+            this.chunks = chunks;
+            this.received = new BitSet(chunks);
+        }
+    }
+}
