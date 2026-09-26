@@ -97,17 +97,7 @@ final class CustomMusicPack {
                     PACK_ID,
                     Component.literal("AFK Cinematics Custom Music"),
                     true,
-                    new Pack.ResourcesSupplier() {
-                        @Override
-                        public PackResources openPrimary(String packId) {
-                            return new PathPackResources(packId, true, PACK_DIRECTORY);
-                        }
-
-                        @Override
-                        public PackResources openFull(String packId, Pack.Info info) {
-                            return new PathPackResources(packId, true, PACK_DIRECTORY);
-                        }
-                    },
+                    packId -> new PathPackResources(packId, PACK_DIRECTORY, true)
                     PackType.CLIENT_RESOURCES,
                     Pack.Position.TOP,
                     PackSource.BUILT_IN);
