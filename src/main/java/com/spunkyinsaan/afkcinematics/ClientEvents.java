@@ -139,17 +139,18 @@ public final class ClientEvents {
     public void onRegisterClientCommands(RegisterClientCommandsEvent event) {
         event.getDispatcher().register(Commands.literal("afkc")
                 .then(Commands.literal("start").executes(context -> {
-                    if (!enabled) return sendCommandFeedback(context, "AFK Cinematics is disabled.");
                     requestManualStart();
-                    return sendCommandFeedback(context, "Starting a cinematic.");
+                    return sendCommandFeedback(context, "AFK Cinematics started.");
                 }))
                 .then(Commands.literal("time")
                         .then(Commands.argument("seconds", IntegerArgumentType.integer(1, 36000))
                                 .executes(context -> {
                                     int seconds = IntegerArgumentType.getInteger(context, "seconds");
                                     setAfkTimeoutSeconds(seconds);
-                                    return sendCommandFeedback(context, "AFK delay set to " + seconds + " seconds.");
-                                })))
+                                    return sendCommandFeedback(context, "AFK timer set to " + seconds + " seconds");
+                                }))
+                        .executes(context -> sendCommandFeedback(context,
+                                "Current AFK timer: " + getAfkTimeoutSeconds() + " seconds")))
                 .then(Commands.literal("music")
                         .then(Commands.literal("on").executes(context -> {
                             setMusicEnabled(true);
@@ -157,17 +158,24 @@ public final class ClientEvents {
                         }))
                         .then(Commands.literal("off").executes(context -> {
                             setMusicEnabled(false);
-                            return sendCommandFeedback(context, "Cinematic music disabled.");
-                        })))
+                            return sendCommandFeedback(context, "AFK cinematic music disabled");
+                        }))
+                        .executes(context -> sendCommandFeedback(context,
+                                "AFK cinematic music: " + (musicEnabled ? "on" : "off"))))
                 .then(Commands.literal("motion")
                         .then(Commands.literal("default").executes(context -> setMotionLevel(context, MotionLevel.DEFAULT)))
                         .then(Commands.literal("low").executes(context -> setMotionLevel(context, MotionLevel.LOW)))
                         .then(Commands.literal("medium").executes(context -> setMotionLevel(context, MotionLevel.MEDIUM)))
-                        .then(Commands.literal("high").executes(context -> setMotionLevel(context, MotionLevel.HIGH))))
+                        .then(Commands.literal("high").executes(context -> setMotionLevel(context, MotionLevel.HIGH)))
+                        .executes(context -> sendCommandFeedback(context,
+                                "AFK cinematic motion: " + motionLevel.displayName())))
                 .then(Commands.literal("about").executes(context -> {
                     Util.getPlatform().openUri("https://modrinth.com/user/spunkyinsaan");
                     return sendCommandFeedback(context, "AFK Cinematics by Spunky Insaan.");
-                })));
+                }))
+                .executes(context -> sendCommandFeedback(context,
+                        "Usage: /afkc start | /afkc time <seconds> | /afkc music on|off | "
+                                + "/afkc motion <default|low|medium|high> | /afkc about"));
     }
 
     private int setMotionLevel(CommandContext<CommandSourceStack> context, MotionLevel level) {
