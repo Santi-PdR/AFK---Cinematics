@@ -360,7 +360,7 @@ public final class ClientEvents {
         if (!musicEnabled || minecraft.level == null) return;
         cancelMusicFadeOut(minecraft);
         stopBackgroundMusic(minecraft);
-        List<net.minecraft.resources.ResourceLocation> customTracks = CustomMusicPack.getTracks();
+        java.util.List<net.minecraft.resources.ResourceLocation> customTracks = CustomMusicPack.getTracks();
         Music selectedMusic;
         if (!customTracks.isEmpty()) {
             int index = java.util.concurrent.ThreadLocalRandom.current().nextInt(customTracks.size());
