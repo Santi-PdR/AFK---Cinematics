@@ -203,7 +203,7 @@ public final class ClientEvents {
             return;
         }
 
-        while (OPEN_SETTINGS.consumeClick()) minecraft.setScreen(new AfkCinematicsSettingsScreen(this));
+        while (OPEN_SETTINGS.consumeClick()) minecraft.setScreen(new AfkCinematicsSettingsScreen(this, minecraft.screen));
         while (TOGGLE_ENABLED.consumeClick()) setEnabled(!enabled);
 
         Vec3 position = minecraft.player.position();
@@ -247,6 +247,14 @@ public final class ClientEvents {
         if (cinematicActive) director.tick(minecraft);
         lastPosition = position;
         if (startGraceTicks > 0 && !moved) startGraceTicks--;
+    }
+
+    String getOpenSettingsKeyName() {
+        return OPEN_SETTINGS.getTranslatedKeyMessage().getString();
+    }
+
+    String getToggleEnabledKeyName() {
+        return TOGGLE_ENABLED.getTranslatedKeyMessage().getString();
     }
 
     public void renderCinematicOverlay(net.minecraft.client.gui.GuiGraphics graphics) {
