@@ -151,6 +151,7 @@ final class MusicNetwork {
             }
             if (!ServerSettings.get().enabled() || !ServerSettings.get().musicEnabled()) return;
             activeCinematicHost = sender.getUUID();
+            if (sender.getServer().isSingleplayer()) return;
             if (!playbackActive) startPlayback(sender);
         });
         context.setPacketHandled(true);
@@ -165,7 +166,7 @@ final class MusicNetwork {
             broadcastSettings();
             if (!ServerSettings.get().enabled() || !ServerSettings.get().musicEnabled()) {
                 stopPlayback();
-            } else if (!playbackActive && activeCinematicHost != null) {
+            } else if (!sender.getServer().isSingleplayer() && !playbackActive && activeCinematicHost != null) {
                 ServerPlayer host = sender.getServer().getPlayerList().getPlayer(activeCinematicHost);
                 if (host != null) startPlayback(host);
             }
