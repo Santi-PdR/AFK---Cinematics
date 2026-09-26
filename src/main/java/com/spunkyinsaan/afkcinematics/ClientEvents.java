@@ -162,7 +162,8 @@ public final class ClientEvents {
         startGraceTicks = 60;
         passiveMovementTicks = 0;
         director.setMotionLevel(motionLevel);
-        director.start(minecraft);\n        playRandomCinematicMusic(minecraft);
+        director.start(minecraft);
+        playRandomCinematicMusic(minecraft);
     }
 
     private void stopDirector(Minecraft minecraft) {
@@ -170,7 +171,8 @@ public final class ClientEvents {
         cinematicActive = false;
         startGraceTicks = 0;
         passiveMovementTicks = 0;
-        director.stop(minecraft);\n        stopCinematicMusic(minecraft);
+        director.stop(minecraft);
+        stopCinematicMusic(minecraft);
     }
 
     boolean isEnabled() { return enabled; }
