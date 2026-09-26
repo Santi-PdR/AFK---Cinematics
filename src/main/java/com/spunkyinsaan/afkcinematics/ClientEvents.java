@@ -52,6 +52,7 @@ public final class ClientEvents {
     private int afkTimeoutTicks = DEFAULT_AFK_TICKS;
     private int inactivityTicks;
     private int startGraceTicks;
+    private int suppressActivityTicks;
     private int passiveMovementTicks;
     private boolean activityPending;
     private boolean cinematicActive;
@@ -153,6 +154,10 @@ public final class ClientEvents {
         boolean moved = movementSquared > MOVEMENT_EPSILON_SQUARED;
         boolean input = activityPending;
         activityPending = false;
+        if (suppressActivityTicks > 0) {
+            suppressActivityTicks--;
+            input = false;
+        }
 
         if (!enabled || minecraft.screen != null) {
             inactivityTicks = 0;
@@ -199,6 +204,7 @@ public final class ClientEvents {
         if (!enabled || cinematicActive) return;
         cinematicActive = true;
         startGraceTicks = 60;
+        suppressActivityTicks = 8;
         passiveMovementTicks = 0;
         director.setMotionLevel(motionLevel);
         director.start(minecraft);
@@ -209,6 +215,7 @@ public final class ClientEvents {
         if (!cinematicActive && !director.isActive()) return;
         cinematicActive = false;
         startGraceTicks = 0;
+        suppressActivityTicks = 0;
         passiveMovementTicks = 0;
         director.stop(minecraft);
         fadeOutCinematicMusic(minecraft);
