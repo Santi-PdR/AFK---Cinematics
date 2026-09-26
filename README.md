@@ -23,6 +23,16 @@ Settings are saved to `config/afkcinematics.properties`:
 - `cinematic_music_enabled`
 - `cinematic_motion_level`
 
+## Custom music
+
+Copy your music files in **OGG Vorbis** format into:
+
+```
+config/afkcinematics/music/
+```
+
+Open the folder from the settings screen with **J → Open Music Folder**. The mod chooses randomly from the OGG files in that folder during AFK cinematics. Restart Minecraft after adding or removing tracks so the custom resource pack can be refreshed. If the folder contains no OGG files, the mod keeps using Minecraft's built-in music.
+
 ## Build
 
 With Java 17 and Gradle 8.8 installed, run:
