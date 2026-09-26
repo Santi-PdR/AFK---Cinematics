@@ -9,6 +9,7 @@
   "screen.afkcinematics.motion": "Camera Motion: %s",
   "screen.afkcinematics.afk_time": "AFK Time: %s seconds",
   "screen.afkcinematics.start_now": "Start Now",
+  "screen.afkcinematics.open_music_folder": "Open Music Folder",
   "screen.afkcinematics.about": "About",
   "screen.afkcinematics.open_key": "Open Settings Key: %s",
   "screen.afkcinematics.toggle_key": "Toggle AFK Enabled Key: %s",
