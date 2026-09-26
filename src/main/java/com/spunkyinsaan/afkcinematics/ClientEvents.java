@@ -59,14 +59,14 @@ public final class ClientEvents {
         MinecraftForge.EVENT_BUS.register(INSTANCE);
     }
 
-    static ClientEvents instance() { return INSTANCE; }
+    public static ClientEvents instance() { return INSTANCE; }
 
     private static void registerKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(OPEN_SETTINGS);
         event.register(TOGGLE_ENABLED);
     }
 
-    static void markInputActivity() {
+    public static void markInputActivity() {
         INSTANCE.activityPending = true;
     }
 
@@ -139,7 +139,7 @@ public final class ClientEvents {
         if (startGraceTicks > 0 && !moved) startGraceTicks--;
     }
 
-    void renderCinematicOverlay(net.minecraft.client.gui.GuiGraphics graphics) {
+    public void renderCinematicOverlay(net.minecraft.client.gui.GuiGraphics graphics) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.getWindow() != null) {
             director.renderOverlay(graphics, minecraft.getWindow().getGuiScaledWidth(),
