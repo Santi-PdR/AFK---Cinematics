@@ -249,7 +249,7 @@ public final class ClientEvents {
     }
 
     void setAfkTimeoutSeconds(int seconds) {
-        afkTimeoutTicks = Math.max(5, Math.min(1800, seconds)) * 20;
+        afkTimeoutTicks = Math.max(1, Math.min(36000, seconds)) * 20;
         inactivityTicks = 0;
         saveConfig();
     }
