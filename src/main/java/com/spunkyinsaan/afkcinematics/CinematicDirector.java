@@ -56,7 +56,25 @@ final class CinematicDirector {
    private int consecutiveEnvironmentShots;
    private int restoreFov;
    private boolean restoreHudHidden;
+   private int fadeInTicksRemaining;
+   private int creditsTicksRemaining;
    private CameraType restorePerspective = CameraType.FIRST_PERSON;
+
+   void renderOverlay(net.minecraft.client.gui.GuiGraphics graphics, int width, int height) {
+      if (this.fadeInTicksRemaining > 0) {
+         float progress = MathHelper.clamp((float)this.fadeInTicksRemaining / 10.0F, 0.0F, 1.0F);
+         int alpha = MathHelper.clamp(Math.round(progress * 150.0F), 0, 255);
+         graphics.fill(0, 0, width, height, alpha << 24);
+      }
+      if (this.creditsTicksRemaining > 0) {
+         int elapsed = 220 - this.creditsTicksRemaining;
+         float progress = elapsed < 20 ? elapsed / 20.0F
+                 : elapsed < 200 ? 1.0F : MathHelper.clamp((220 - elapsed) / 20.0F, 0.0F, 1.0F);
+         int alpha = MathHelper.clamp(Math.round(progress * 255.0F), 0, 255);
+         graphics.drawString(Minecraft.getInstance().font, "Created By Spunky Insaan",
+                 8, 8, (alpha << 24) | 0xFFFFFF, true);
+      }
+   }
 
    boolean isActive() {
       return this.active;
@@ -73,9 +91,11 @@ final class CinematicDirector {
       if (!this.active && client.player != null) {
          Player player = client.player;
          this.restoreFov = client.options.fov().get();
-         this.restoreHudHidden = client.gui.hud.isHidden();
+         this.restoreHudHidden = client.options.hideGui;
          this.restorePerspective = client.options.getCameraType();
          this.active = true;
+         this.fadeInTicksRemaining = 10;
+         this.creditsTicksRemaining = 220;
          this.shotTicksRemaining = 0;
          this.shotElapsedTicks = 0;
          this.currentShotDurationTicks = 100;
@@ -90,7 +110,7 @@ final class CinematicDirector {
          this.cameraPitch = player.getXRot();
          this.occludedTicks = 0;
          if (!this.restoreHudHidden) {
-            client.gui.hud.toggle();
+            client.options.hideGui = !client.options.hideGui;
          }
 
          client.options.setCameraType(CameraType.THIRD_PERSON_BACK);
@@ -102,9 +122,10 @@ final class CinematicDirector {
       if (this.active) {
          this.active = false;
          this.shotTicksRemaining = 0;
+         this.creditsTicksRemaining = 0;
          client.options.fov().set(this.restoreFov);
-         if (client.gui.hud.isHidden() != this.restoreHudHidden) {
-            client.gui.hud.toggle();
+         if (client.options.hideGui != this.restoreHudHidden) {
+            client.options.hideGui = !client.options.hideGui;
          }
 
          client.options.setCameraType(this.restorePerspective);
@@ -115,6 +136,8 @@ final class CinematicDirector {
    void tick(Minecraft client) {
       if (this.active && client.player != null && client.level != null) {
          this.motionPhase += 0.028F;
+         if (this.fadeInTicksRemaining > 0) --this.fadeInTicksRemaining;
+         if (this.creditsTicksRemaining > 0) --this.creditsTicksRemaining;
          this.easeFov(client, 30.0F, 0.06F);
          if (this.shotTicksRemaining <= 0) {
             this.chooseNextShot(client);
