@@ -33,9 +33,9 @@ The host places music in **OGG Vorbis** format in:
 config/afkcinematics/music/
 ```
 
-Open this folder using **J → Open Music Folder**, then press **Sync Host Music**. The host's playlist is copied to the server, and tracks are sent to clients by the mod when playback starts. Clients only need the mod installed; they do not need to add music files. The playlist syncs again when the host joins, and pressing the sync button after editing the folder applies additions and removals. AFK Cinematics does not fall back to Minecraft's vanilla music when the server playlist is empty.
+Open this folder using **J → Open Music Folder**, then press **Sync Host Music**. The host's playlist is copied to the server, and tracks are sent to clients by the mod when playback starts. Clients only need the mod installed; they do not need to add music files. The playlist syncs again when the host joins, and pressing the sync button after editing the folder applies additions and removals. Tracks are sent to clients in network packets and played through one stable sound event; syncing or starting a cinematic does not reload resource packs. AFK Cinematics does not fall back to Minecraft's vanilla music when the server playlist is empty.
 
-In single-player, the world owner automatically uploads that folder to the integrated server, including when cheats are off. Test immediately in the Overworld with **J → Start Now** or `/afkc start`; playback waits until the host playlist is synchronized. Resource packs reload when the playlist syncs, not when a cinematic starts.
+In single-player, the world owner automatically uploads that folder to the integrated server, including when cheats are off. Test immediately in the Overworld with **J → Start Now** or `/afkc start`; playback waits until the host playlist is synchronized. Minecraft loads the stable AFK music sound entry during its normal initial resource load. Adding, syncing, or changing tracks while the game is open does not reload resource packs.
 
 ## Build
 
