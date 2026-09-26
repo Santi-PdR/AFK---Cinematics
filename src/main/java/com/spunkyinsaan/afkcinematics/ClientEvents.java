@@ -493,8 +493,9 @@ public final class ClientEvents {
         if (!musicEnabled || minecraft.level == null) return;
         cancelMusicFadeOut(minecraft);
         stopBackgroundMusic(minecraft);
+        if (!CustomMusicPack.stageTrack(track)) return;
         ensureMusicAudible(minecraft);
-        minecraft.getMusicManager().startPlaying(CustomMusicPack.asMusic(track));
+        minecraft.getMusicManager().startPlaying(CustomMusicPack.asMusic());
         cinematicMusicActive = true;
     }
 
