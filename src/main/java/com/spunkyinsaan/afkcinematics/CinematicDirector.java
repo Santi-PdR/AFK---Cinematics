@@ -155,7 +155,9 @@ final class CinematicDirector {
 
     private void chooseNextShot(Minecraft minecraft) {
         Player player = minecraft.player;
+        if (player == null) return;
         ThreadLocalRandom random = ThreadLocalRandom.current();
+        boolean underground = isUnderground(player);
         boolean playerShot = consecutivePlayerShots < 3
                 && (consecutiveEnvironmentShots >= 2 || random.nextInt(100) < 62);
         if (playerShot) {
@@ -178,9 +180,10 @@ final class CinematicDirector {
         Vec3 right = new Vec3(-forward.z, 0, forward.x);
 
         if (playerShot) {
-            configurePlayerShot(player, chest, forward, right, random.nextInt(12));
+            configurePlayerShot(player, chest, forward, right, randomPreset(ShotPreset::isPlayerShot, random));
         } else {
-            configureEnvironmentShot(player, chest, forward, right, random.nextInt(12));
+            configureEnvironmentShot(player, chest, forward, right,
+                    selectEnvironmentPreset(player, underground, random));
         }
 
         baseCamera = clampToPlayerRadius(player, baseCamera);
@@ -201,41 +204,76 @@ final class CinematicDirector {
         lastStableCamera = cameraPosition;
     }
 
-    private void configurePlayerShot(Player player, Vec3 chest, Vec3 forward, Vec3 right, int preset) {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        double sign = random.nextBoolean() ? 1.0 : -1.0;
-        Vec3 face = chest.add(0, Math.max(0.05, player.getBbHeight() * 0.16), 0);
-        Vec3 heldSide = chest.add(right.scale(sign * 0.55)).add(0, -0.28, 0);
-        switch (preset) {
-            case 0 -> { baseFocus = chest; orbitRadius = random.nextDouble(2.7, 4.8); orbitHeightOffset = random.nextDouble(-0.2, 0.55); }
-            case 1 -> { baseFocus = chest; orbitRadius = random.nextDouble(9.0, 14.0); orbitHeightOffset = random.nextDouble(1.0, 2.8); }
-            case 2 -> { baseFocus = face; orbitRadius = random.nextDouble(5.8, 9.6); orbitHeightOffset = random.nextDouble(3.2, 5.6); }
-            case 3 -> { baseFocus = face; orbitRadius = random.nextDouble(1.7, 2.8); orbitHeightOffset = random.nextDouble(0.2, 0.8); }
-            case 4 -> { baseFocus = chest.add(forward.scale(0.3)); orbitRadius = random.nextDouble(2.0, 3.2); orbitHeightOffset = random.nextDouble(0.4, 1.0); }
-            case 5 -> { baseFocus = chest; orbitRadius = random.nextDouble(2.3, 3.8); orbitHeightOffset = random.nextDouble(1.0, 2.0); }
-            case 6 -> { baseFocus = heldSide; orbitRadius = random.nextDouble(1.6, 2.8); orbitHeightOffset = random.nextDouble(-0.15, 0.55); }
-            case 7 -> { baseFocus = chest; orbitRadius = random.nextDouble(3.6, 5.5); orbitHeightOffset = random.nextDouble(-1.0, -0.15); }
-            case 8 -> { baseFocus = chest; orbitRadius = random.nextDouble(4.0, 6.8); orbitHeightOffset = random.nextDouble(0.8, 2.4); }
-            case 9 -> { baseFocus = face; orbitRadius = random.nextDouble(2.0, 3.5); orbitHeightOffset = random.nextDouble(0.0, 0.6); }
-            case 10 -> { baseFocus = chest; orbitRadius = random.nextDouble(6.5, 10.0); orbitHeightOffset = random.nextDouble(2.0, 4.2); }
-            default -> { baseFocus = chest; orbitRadius = random.nextDouble(2.4, 4.0); orbitHeightOffset = random.nextDouble(-0.4, 0.3); }
-        }
-        orbitSpeed = random.nextDouble(0.0026, 0.0054);
-        lateralAmplitude = 0.03;
-        verticalAmplitude = 0.018;
-        baseCamera = baseFocus.add(Math.cos(orbitAngle) * orbitRadius, orbitHeightOffset,
-                Math.sin(orbitAngle) * orbitRadius);
-        // Several hero/profile shots are deliberately framed from the direction the player faces.
-        if (preset == 3 || preset == 4 || preset == 9) {
-            baseCamera = baseFocus.add(forward.scale(orbitRadius)).add(right.scale(sign * 0.45))
-                    .add(0, orbitHeightOffset, 0);
-        }
-        lateralAmplitude = 0.03;
-        verticalAmplitude = 0.02;
+    private ShotPreset randomPreset(java.util.function.Predicate<ShotPreset> filter, ThreadLocalRandom random) {
+        ShotPreset[] presets = java.util.Arrays.stream(ShotPreset.values()).filter(filter)
+                .toArray(ShotPreset[]::new);
+        return presets[random.nextInt(presets.length)];
     }
 
-    private void configureEnvironmentShot(Player player, Vec3 chest, Vec3 forward, Vec3 right, int preset) {
+    private ShotPreset selectEnvironmentPreset(Player player, boolean underground, ThreadLocalRandom random) {
+        boolean nether = player.level().dimension() == Level.NETHER;
+        boolean end = player.level().dimension() == Level.END;
+        long time = player.level().getDayTime() % 24000L;
+        java.util.List<ShotPreset> candidates = new java.util.ArrayList<>();
+        for (ShotPreset preset : ShotPreset.values()) {
+            String name = preset.name();
+            if (!preset.isEnvironmentShot() && !(underground && preset.isCaveShot())) continue;
+            if (name.startsWith("ENV_NETHER_") && !nether) continue;
+            if (name.startsWith("ENV_END_") && !end) continue;
+            if ((nether || end) && name.startsWith("ENV_OVERWORLD_")) continue;
+            if (name.startsWith("ENV_SUNRISE_") && !(time < 3000 || time > 23000)) continue;
+            if (name.startsWith("ENV_SUNSET_") && !(time >= 11000 && time <= 14000)) continue;
+            if (name.startsWith("ENV_NOON_") && !(time >= 5000 && time <= 8000)) continue;
+            if (name.startsWith("ENV_NIGHT_") && !(time >= 13000 || time < 1000)) continue;
+            candidates.add(preset);
+        }
+        if (candidates.isEmpty()) return ShotPreset.ENV_WIDE_NATURE;
+        return candidates.get(random.nextInt(candidates.size()));
+    }
+
+    private void configurePlayerShot(Player player, Vec3 chest, Vec3 forward, Vec3 right, ShotPreset preset) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
+        String name = preset.name();
+        double sign = name.endsWith("_LEFT") || name.endsWith("_LOW") ? -1.0 : 1.0;
+        boolean close = name.contains("CLOSE");
+        boolean wide = name.contains("WIDE") || name.contains("EPIC") || name.contains("NATURE")
+                || name.contains("RIDGE") || name.contains("VALLEY") || name.contains("BACKDROP")
+                || name.contains("DISTANCE") || name.contains("LONG");
+        boolean high = name.contains("HIGH") || name.contains("TOP") || name.contains("OVERHEAD")
+                || name.contains("RIDGE") || name.contains("ARC");
+        boolean low = name.contains("LOW");
+        Vec3 face = chest.add(0, Math.max(0.05, player.getBbHeight() * 0.16), 0);
+        Vec3 heldSide = chest.add(right.scale(sign * 0.55)).add(0, -0.28, 0);
+        baseFocus = close && (name.contains("FACE") || name.contains("PROFILE") || name.contains("HEAD"))
+                ? face : name.contains("SHOULDER") ? heldSide : chest;
+
+        orbitRadius = wide ? random.nextDouble(7.0, 13.5)
+                : close ? random.nextDouble(1.7, 3.2) : random.nextDouble(2.7, 5.2);
+        orbitHeightOffset = high ? random.nextDouble(2.0, 5.2)
+                : low ? random.nextDouble(-0.8, 0.2) : random.nextDouble(-0.2, 1.3);
+        orbitSpeed = random.nextDouble(name.contains("SLOW") || name.contains("LOCK") ? 0.0022 : 0.0028,
+                name.contains("SLOW") || name.contains("LOCK") ? 0.0038 : 0.0052);
+        lateralAmplitude = name.contains("TRACK") || name.contains("SWEEP") || name.contains("PAN") ? 0.055 : 0.03;
+        verticalAmplitude = high ? 0.03 : 0.02;
+
+        Vec3 radial = new Vec3(Math.cos(orbitAngle) * orbitRadius, 0, Math.sin(orbitAngle) * orbitRadius);
+        if (name.contains("FRONT") || name.contains("HEAD_ON")) {
+            baseCamera = baseFocus.add(forward.scale(orbitRadius)).add(right.scale(sign * 0.4))
+                    .add(0, orbitHeightOffset, 0);
+        } else if (name.contains("BACK") || name.contains("REAR") || name.contains("OVER_SHOULDER")) {
+            baseCamera = baseFocus.subtract(forward.scale(orbitRadius)).add(right.scale(sign * 0.4))
+                    .add(0, orbitHeightOffset, 0);
+        } else if (name.contains("SIDE") || name.contains("PROFILE") || name.contains("DUTCH")) {
+            baseCamera = baseFocus.add(right.scale(sign * orbitRadius)).add(forward.scale(0.4))
+                    .add(0, orbitHeightOffset, 0);
+        } else {
+            baseCamera = baseFocus.add(radial).add(0, orbitHeightOffset, 0);
+        }
+    }
+
+    private void configureEnvironmentShot(Player player, Vec3 chest, Vec3 forward, Vec3 right, ShotPreset preset) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        String name = preset.name();
         boolean underground = isUnderground(player);
         Vec3 nature = pickNatureTarget(player, chest, forward, right, random, underground);
         Vec3 nearby = pickNearbyEntityOrFallback(player, chest, random);
@@ -244,37 +282,49 @@ final class CinematicDirector {
         Vec3 caveWall = chest.add(forward.scale(4.0 + random.nextDouble(2.0))).add(0, 0.5, 0);
         Vec3 caveCeiling = chest.add(forward.scale(3.0)).add(0, 4.0 + random.nextDouble(2.0), 0);
         Vec3 caveFloor = chest.add(forward.scale(3.0)).add(0, -0.6, 0);
-        Vec3 target = switch (preset) {
-            case 0, 6, 7 -> nature;
-            case 1, 10 -> sky;
-            case 2 -> nearby;
-            case 3, 4, 8, 9 -> skyline;
-            case 5 -> underground ? caveCeiling : nature;
-            case 11 -> underground ? caveWall : nearby;
-            default -> nature;
-        };
-        baseFocus = target;
-        double radius = switch (preset) {
-            case 0, 4, 8 -> random.nextDouble(7.0, 12.0);
-            case 1, 10 -> random.nextDouble(8.0, 14.0);
-            case 2, 5, 11 -> random.nextDouble(3.0, 6.0);
-            default -> random.nextDouble(5.0, 10.0);
-        };
+
+        if (name.startsWith("CAVE_")) {
+            if (name.contains("CEILING") || name.contains("CHAMBER")) baseFocus = caveCeiling;
+            else if (name.contains("FLOOR") || name.contains("WATER")) baseFocus = caveFloor;
+            else if (name.contains("WALL") || name.contains("POCKET")) baseFocus = caveWall;
+            else baseFocus = chest.add(forward.scale(7.0)).add(0, 0.3, 0);
+        } else if (name.contains("ENTITY") || name.contains("WILDLIFE")) {
+            baseFocus = nearby;
+        } else if (name.contains("SKY") || name.contains("SUNRISE") || name.contains("SUNSET")
+                || name.contains("NOON") || name.contains("NIGHT")) {
+            baseFocus = sky;
+        } else if (name.contains("HORIZON") || name.contains("RIDGE") || name.contains("PEAK")
+                || name.contains("VALLEY") || name.contains("RIVER") || name.contains("CANYON")
+                || name.contains("MOUNTAIN")) {
+            baseFocus = skyline;
+        } else {
+            baseFocus = nature;
+        }
+
+        double radius = name.contains("WIDE") || name.contains("EPIC") || name.contains("GIANT")
+                || name.contains("REMOTE") || name.contains("LONG") ? random.nextDouble(8.0, 13.5)
+                : name.contains("DETAIL") || name.contains("GLANCE") || name.contains("GROUND")
+                ? random.nextDouble(3.0, 6.0) : random.nextDouble(5.0, 10.0);
         orbitRadius = radius;
-        orbitAngle = random.nextDouble(0, Math.PI * 2);
-        orbitSpeed = random.nextDouble(0.0022, 0.0045);
-        orbitHeightOffset = switch (preset) {
-            case 1, 5, 8, 10 -> random.nextDouble(2.0, 6.0);
-            case 3, 9 -> random.nextDouble(-0.4, 0.8);
-            default -> random.nextDouble(0.4, 2.8);
-        };
-        baseCamera = baseFocus.add(Math.cos(orbitAngle) * radius, orbitHeightOffset,
+        orbitAngle = random.nextDouble(0.0, Math.PI * 2.0);
+        orbitSpeed = random.nextDouble(name.contains("SLOW") || name.contains("LOCK") ? 0.0018 : 0.0022,
+                name.contains("SLOW") || name.contains("LOCK") ? 0.0035 : 0.0045);
+        orbitHeightOffset = name.contains("CRANE") || name.contains("TOP") || name.contains("SKY")
+                ? random.nextDouble(3.0, 6.0)
+                : name.contains("GROUND") || name.contains("LOW") ? random.nextDouble(-0.2, 0.8)
+                : random.nextDouble(0.4, 2.8);
+        if (name.endsWith("LEFT")) baseCamera = baseFocus.add(right.scale(-radius)).add(0, orbitHeightOffset, 0);
+        else if (name.endsWith("RIGHT")) baseCamera = baseFocus.add(right.scale(radius)).add(0, orbitHeightOffset, 0);
+        else baseCamera = baseFocus.add(Math.cos(orbitAngle) * radius, orbitHeightOffset,
                 Math.sin(orbitAngle) * radius);
-        if (preset == 4 || preset == 8) baseCamera = baseCamera.add(right.scale(random.nextBoolean() ? 3.0 : -3.0));
-        if (preset == 5 && underground) baseFocus = caveCeiling;
-        if (preset == 7 && underground) baseFocus = caveFloor;
-        lateralAmplitude = 0.04;
-        verticalAmplitude = 0.02;
+        if (name.contains("REVEAL") || name.contains("PARALLAX")) {
+            baseCamera = baseCamera.add(right.scale(random.nextBoolean() ? 2.0 : -2.0));
+        }
+        if (player.level().dimension() == Level.NETHER || player.level().dimension() == Level.END) {
+            baseCamera = baseFocus.add(baseCamera.subtract(baseFocus).normalize().scale(Math.min(radius, 10.0)));
+        }
+        lateralAmplitude = name.contains("PAN") || name.contains("SWEEP") || name.contains("TRACK") ? 0.05 : 0.035;
+        verticalAmplitude = name.contains("CRANE") || name.contains("TOP") ? 0.03 : 0.02;
     }
 
     private Vec3 pickNearbyEntityOrFallback(Player player, Vec3 chest, ThreadLocalRandom random) {
