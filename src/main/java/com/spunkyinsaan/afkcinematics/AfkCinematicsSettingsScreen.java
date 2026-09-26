@@ -55,7 +55,7 @@ public final class AfkCinematicsSettingsScreen extends Screen {
 
     private Component motionLabel() {
         return Component.translatable("screen.afkcinematics.motion",
-                Component.literal(settings.getMotionLevel().name()));
+                Component.literal(settings.getMotionLevel().displayName()));
     }
 
     @Override

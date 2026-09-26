@@ -7,6 +7,7 @@ issueTrackerURL="https://github.com/Santi-PdR/AFK---Cinematics/issues"
 modId="afkcinematics"
 version="${version}"
 displayName="AFK Cinematics"
+logoFile="icon.png"
 authors="Spunkyinsaan; Forge port by Santi-PdR"
 description='''
 Starts smooth cinematic camera shots after the client player becomes inactive.
