@@ -43,6 +43,7 @@ final class CustomMusicPack {
     private static final Path SYNC_DIRECTORY = CONFIG_DIRECTORY.resolve("server_music_cache");
     private static final Path PACK_DIRECTORY = CONFIG_DIRECTORY.resolve("music_resource_pack");
     private static volatile List<ResourceLocation> tracks = List.of();
+    private static volatile List<ResourceLocation> localTracks = List.of();
 
     private CustomMusicPack() {}
 
@@ -72,6 +73,10 @@ final class CustomMusicPack {
 
     static List<ResourceLocation> getTracks() {
         return tracks;
+    }
+
+    static List<ResourceLocation> getLocalTracks() {
+        return localTracks;
     }
 
     static Music asMusic(ResourceLocation track) {
@@ -129,9 +134,11 @@ final class CustomMusicPack {
         }
 
         List<ResourceLocation> foundTracks = new ArrayList<>();
+        List<ResourceLocation> foundLocalTracks = new ArrayList<>();
         Set<String> usedNames = new HashSet<>();
         JsonObject soundsJson = new JsonObject();
-        copyMusicFiles(MUSIC_DIRECTORY, "", customSoundsDirectory, soundsJson, foundTracks, usedNames);
+        copyMusicFiles(MUSIC_DIRECTORY, "", customSoundsDirectory, soundsJson, foundLocalTracks, usedNames);
+        foundTracks.addAll(foundLocalTracks);
         copyMusicFiles(SYNC_DIRECTORY, "", customSoundsDirectory, soundsJson, foundTracks, usedNames);
 
         Files.writeString(musicAssets.resolve("sounds.json"), GSON.toJson(soundsJson), StandardCharsets.UTF_8);
@@ -141,6 +148,7 @@ final class CustomMusicPack {
         JsonObject metadata = new JsonObject();
         metadata.add("pack", pack);
         Files.writeString(PACK_DIRECTORY.resolve("pack.mcmeta"), GSON.toJson(metadata), StandardCharsets.UTF_8);
+        localTracks = List.copyOf(foundLocalTracks);
         tracks = List.copyOf(foundTracks);
     }
 
