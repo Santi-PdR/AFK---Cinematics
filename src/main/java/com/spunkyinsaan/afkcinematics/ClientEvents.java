@@ -194,17 +194,22 @@ public final class ClientEvents {
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft minecraft = Minecraft.getInstance();
-        tickMusicFadeOut(minecraft);
+        while (OPEN_SETTINGS.consumeClick()) minecraft.setScreen(new AfkCinematicsSettingsScreen(this, minecraft.screen));
+        while (TOGGLE_ENABLED.consumeClick()) toggleEnabled();
+
         if (minecraft.player == null || minecraft.level == null || minecraft.isPaused()) {
             stopDirector(minecraft);
+            stopCinematicMusic(minecraft);
             inactivityTicks = 0;
+            forceStartRequested = false;
+            suppressActivityTicks = 0;
+            startGraceTicks = 0;
+            passiveMovementTicks = 0;
             lastPosition = null;
             activityPending = false;
             return;
         }
-
-        while (OPEN_SETTINGS.consumeClick()) minecraft.setScreen(new AfkCinematicsSettingsScreen(this, minecraft.screen));
-        while (TOGGLE_ENABLED.consumeClick()) setEnabled(!enabled);
+        tickMusicFadeOut(minecraft);
 
         Vec3 position = minecraft.player.position();
         double movementSquared = lastPosition == null ? 0.0 : position.distanceToSqr(lastPosition);
@@ -216,7 +221,11 @@ public final class ClientEvents {
             input = false;
         }
 
-        if (!enabled || minecraft.screen != null) {
+        if (!enabled) {
+            forceStartRequested = false;
+            inactivityTicks = 0;
+            stopDirector(minecraft);
+        } else if (minecraft.screen != null) {
             inactivityTicks = 0;
             stopDirector(minecraft);
         } else if (forceStartRequested) {
@@ -295,15 +304,25 @@ public final class ClientEvents {
     void setEnabled(boolean value) {
         enabled = value;
         inactivityTicks = 0;
-        if (!value) cinematicActive = false;
+        if (!value) {
+            forceStartRequested = false;
+            stopDirector(Minecraft.getInstance());
+        }
         saveConfig();
     }
 
-    void toggleEnabled() { setEnabled(!enabled); }
+    void toggleEnabled() {
+        setEnabled(!enabled);
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null) {
+            minecraft.player.sendSystemMessage(Component.literal("AFK Cinematics "
+                    + (enabled ? "enabled" : "disabled")));
+        }
+    }
 
     void setMusicEnabled(boolean value) {
         musicEnabled = value;
-        if (!value) fadeOutCinematicMusic(Minecraft.getInstance());
+        if (!value) stopCinematicMusic(Minecraft.getInstance());
         saveConfig();
     }
 
@@ -320,7 +339,7 @@ public final class ClientEvents {
     }
 
     void requestManualStart() {
-        if (enabled) forceStartRequested = true;
+        forceStartRequested = true;
     }
 
     private void playRandomCinematicMusic(Minecraft minecraft) {
