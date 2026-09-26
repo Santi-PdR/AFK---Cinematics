@@ -97,7 +97,7 @@ final class CustomMusicPack {
                     PACK_ID,
                     Component.literal("AFK Cinematics Custom Music"),
                     true,
-                    packId -> new PathPackResources(packId, PACK_DIRECTORY, true)
+                    packId -> new PathPackResources(packId, PACK_DIRECTORY, true),
                     PackType.CLIENT_RESOURCES,
                     Pack.Position.TOP,
                     PackSource.BUILT_IN);
