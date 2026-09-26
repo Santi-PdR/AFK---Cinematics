@@ -308,6 +308,12 @@ public final class ClientEvents {
         ClientMusicNetwork.sendHostState(false);
     }
 
+    boolean canEditSettings() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.player == null || minecraft.getSingleplayerServer() != null
+                || minecraft.player.hasPermissions(2);
+    }
+
     boolean isEnabled() { return enabled; }
     boolean isMusicEnabled() { return musicEnabled; }
     MotionLevel getMotionLevel() { return motionLevel; }
