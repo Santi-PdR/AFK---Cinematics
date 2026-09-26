@@ -14,6 +14,8 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
+import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -96,6 +98,38 @@ public final class ClientEvents {
     @SubscribeEvent
     public void onMouseScroll(InputEvent.MouseScrollingEvent event) {
         if (event.getScrollDelta() != 0) markInputActivity();
+    }
+
+    @SubscribeEvent
+    public void onTitleScreenRender(ScreenEvent.Render.Post event) {
+        if (!(event.getScreen() instanceof TitleScreen)) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.font == null || minecraft.getWindow() == null) return;
+        String text = "AFK Cinematics By Spunky Insaan";
+        int width = minecraft.getWindow().getGuiScaledWidth();
+        int height = minecraft.getWindow().getGuiScaledHeight();
+        int textWidth = minecraft.font.width(text);
+        int x = width - textWidth - 4;
+        int y = height - 22;
+        boolean hovered = event.getMouseX() >= x && event.getMouseX() <= x + textWidth
+                && event.getMouseY() >= y && event.getMouseY() <= y + 10;
+        event.getGuiGraphics().drawString(minecraft.font, text, x, y,
+                hovered ? 0xA0FFFFFF : 0xFFFFFFFF, true);
+    }
+
+    @SubscribeEvent
+    public void onTitleScreenClick(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (!(event.getScreen() instanceof TitleScreen) || event.getButton() != GLFW.GLFW_MOUSE_BUTTON_1) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.font == null || minecraft.getWindow() == null) return;
+        String text = "AFK Cinematics By Spunky Insaan";
+        int x = minecraft.getWindow().getGuiScaledWidth() - minecraft.font.width(text) - 4;
+        int y = minecraft.getWindow().getGuiScaledHeight() - 22;
+        if (event.getMouseX() >= x && event.getMouseX() <= x + minecraft.font.width(text)
+                && event.getMouseY() >= y && event.getMouseY() <= y + 10) {
+            Util.getPlatform().openUri("https://modrinth.com/user/spunkyinsaan");
+            event.setCanceled(true);
+        }
     }
 
     @SubscribeEvent
@@ -339,6 +373,15 @@ public final class ClientEvents {
             if (value == null) return DEFAULT;
             try { return valueOf(value.trim().toUpperCase(java.util.Locale.ROOT)); }
             catch (IllegalArgumentException ignored) { return DEFAULT; }
+        }
+
+        String displayName() {
+            return switch (this) {
+                case DEFAULT -> "Default";
+                case LOW -> "Low";
+                case MEDIUM -> "Medium";
+                case HIGH -> "High";
+            };
         }
 
         double speedMultiplier() {
