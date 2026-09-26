@@ -42,6 +42,7 @@ final class MusicNetwork {
             () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals);
     private static final Map<String, UploadTransfer> uploadTransfers = new HashMap<>();
     private static UUID musicController;
+    private static UUID activeCinematicHost;
     private static String activeTrackKey;
     private static Path activeTrackPath;
     private static boolean playbackActive;
@@ -66,6 +67,9 @@ final class MusicNetwork {
                 TrackStartMessage::decode, MusicNetwork::handleTrackStart, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(id++, TrackChunkMessage.class, TrackChunkMessage::encode,
                 TrackChunkMessage::decode, MusicNetwork::handleTrackChunk, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, TrackCacheCompleteMessage.class, TrackCacheCompleteMessage::encode,
+                TrackCacheCompleteMessage::decode, MusicNetwork::handleTrackCacheComplete,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(id, PlaybackMessage.class, PlaybackMessage::encode,
                 PlaybackMessage::decode, MusicNetwork::handlePlayback, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(MusicNetwork.class);
@@ -121,13 +125,17 @@ final class MusicNetwork {
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         sendToPlayer(player, new ServerSettingsMessage(ServerSettings.get()));
-        if (playbackActive && activeTrackPath != null) sendTrackAndPlayback(player, activeTrackPath, activeTrackKey);
+        sendAllTracksToPlayer(player);
+        if (playbackActive && activeTrackKey != null) {
+            sendToPlayer(player, new PlaybackMessage(activeTrackKey, true));
+        }
     }
 
     @SubscribeEvent
     public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         uploadTransfers.keySet().removeIf(key -> key.startsWith(player.getUUID().toString() + ":"));
+        if (player.getUUID().equals(activeCinematicHost)) activeCinematicHost = null;
         if (player.getUUID().equals(musicController)) stopPlayback();
     }
 
@@ -136,12 +144,14 @@ final class MusicNetwork {
         ServerPlayer sender = context.getSender();
         context.enqueueWork(() -> {
             if (sender == null || !canControlServer(sender)) return;
-            if (!message.active || !ServerSettings.get().enabled() || !ServerSettings.get().musicEnabled()) {
+            if (!message.active) {
+                if (sender.getUUID().equals(activeCinematicHost)) activeCinematicHost = null;
                 if (sender.getUUID().equals(musicController)) stopPlayback();
                 return;
             }
-            if (playbackActive) return;
-            startPlayback(sender);
+            if (!ServerSettings.get().enabled() || !ServerSettings.get().musicEnabled()) return;
+            activeCinematicHost = sender.getUUID();
+            if (!playbackActive) startPlayback(sender);
         });
         context.setPacketHandled(true);
     }
@@ -153,7 +163,12 @@ final class MusicNetwork {
             if (sender == null || !canControlServer(sender)) return;
             ServerSettings.set(message.settings);
             broadcastSettings();
-            if (!ServerSettings.get().enabled() || !ServerSettings.get().musicEnabled()) stopPlayback();
+            if (!ServerSettings.get().enabled() || !ServerSettings.get().musicEnabled()) {
+                stopPlayback();
+            } else if (!playbackActive && activeCinematicHost != null) {
+                ServerPlayer host = sender.getServer().getPlayerList().getPlayer(activeCinematicHost);
+                if (host != null) startPlayback(host);
+            }
         });
         context.setPacketHandled(true);
     }
@@ -222,6 +237,12 @@ final class MusicNetwork {
             } catch (IOException ignored) {
                 // Keep the current server playlist if filesystem synchronization fails.
             }
+            broadcastServerMusic(sender.getServer());
+            if (!playbackActive && activeCinematicHost != null
+                    && ServerSettings.get().enabled() && ServerSettings.get().musicEnabled()) {
+                ServerPlayer host = sender.getServer().getPlayerList().getPlayer(activeCinematicHost);
+                if (host != null) startPlayback(host);
+            }
         });
         context.setPacketHandled(true);
     }
@@ -247,6 +268,15 @@ final class MusicNetwork {
         context.enqueueWork(() -> net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(
                 net.minecraftforge.api.distmarker.Dist.CLIENT,
                 () -> () -> ClientMusicNetwork.receiveTrackChunk(message.key, message.index, message.data)));
+        context.setPacketHandled(true);
+    }
+
+    private static void handleTrackCacheComplete(TrackCacheCompleteMessage message,
+                                                   Supplier<NetworkEvent.Context> supplier) {
+        NetworkEvent.Context context = supplier.get();
+        context.enqueueWork(() -> net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(
+                net.minecraftforge.api.distmarker.Dist.CLIENT,
+                () -> ClientMusicNetwork::finishTrackSync));
         context.setPacketHandled(true);
     }
 
@@ -289,29 +319,57 @@ final class MusicNetwork {
             activeTrackKey = key;
             playbackActive = true;
             for (ServerPlayer player : sender.getServer().getPlayerList().getPlayers()) {
-                sendTrackAndPlayback(player, selected, key);
+                sendToPlayer(player, new PlaybackMessage(key, true));
             }
         } catch (IOException ignored) {
             // No custom music is available.
         }
     }
 
-    private static void sendTrackAndPlayback(ServerPlayer player, Path path, String key) {
-        try {
-            long size = Files.size(path);
-            if (size <= 0 || size > MAX_TRACK_BYTES) return;
-            byte[] data = Files.readAllBytes(path);
-            int chunks = (data.length + CHUNK_SIZE - 1) / CHUNK_SIZE;
-            sendToPlayer(player, new TrackStartMessage(key, data.length, chunks));
-            for (int index = 0; index < chunks; index++) {
-                int from = index * CHUNK_SIZE;
-                int to = Math.min(from + CHUNK_SIZE, data.length);
-                sendToPlayer(player, new TrackChunkMessage(key, index, java.util.Arrays.copyOfRange(data, from, to)));
-            }
-            sendToPlayer(player, new PlaybackMessage(key, true));
-        } catch (IOException ignored) {
-            // The next track selection can retry the transfer.
+    private static void broadcastServerMusic(MinecraftServer server) {
+        if (server == null) return;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            sendAllTracksToPlayer(player);
         }
+    }
+
+    private static void sendAllTracksToPlayer(ServerPlayer player) {
+        try {
+            List<Path> tracks;
+            Files.createDirectories(SERVER_MUSIC_DIRECTORY);
+            try (var files = Files.list(SERVER_MUSIC_DIRECTORY)) {
+                tracks = files.filter(Files::isRegularFile)
+                        .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".ogg"))
+                        .filter(path -> {
+                            try {
+                                long size = Files.size(path);
+                                return size > 0 && size <= MAX_TRACK_BYTES;
+                            } catch (IOException ignored) {
+                                return false;
+                            }
+                        })
+                        .sorted(Comparator.comparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT)))
+                        .limit(128)
+                        .toList();
+            }
+            for (Path track : tracks) {
+                String base = safeName(stripExtension(track.getFileName().toString()));
+                if (base == null) continue;
+                byte[] data = Files.readAllBytes(track);
+                int chunks = (data.length + CHUNK_SIZE - 1) / CHUNK_SIZE;
+                String key = "server_" + base;
+                sendToPlayer(player, new TrackStartMessage(key, data.length, chunks));
+                for (int index = 0; index < chunks; index++) {
+                    int from = index * CHUNK_SIZE;
+                    int to = Math.min(from + CHUNK_SIZE, data.length);
+                    sendToPlayer(player, new TrackChunkMessage(key, index,
+                            java.util.Arrays.copyOfRange(data, from, to)));
+                }
+            }
+        } catch (IOException ignored) {
+            // Keep the client connection usable if the server music folder is unavailable.
+        }
+        sendToPlayer(player, new TrackCacheCompleteMessage());
     }
 
     private static void stopPlayback() {
@@ -441,6 +499,13 @@ final class MusicNetwork {
         }
         static TrackChunkMessage decode(FriendlyByteBuf buffer) {
             return new TrackChunkMessage(buffer.readUtf(80), buffer.readVarInt(), buffer.readByteArray(CHUNK_SIZE));
+        }
+    }
+
+    private record TrackCacheCompleteMessage() {
+        void encode(FriendlyByteBuf buffer) {}
+        static TrackCacheCompleteMessage decode(FriendlyByteBuf buffer) {
+            return new TrackCacheCompleteMessage();
         }
     }
 

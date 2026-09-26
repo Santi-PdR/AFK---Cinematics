@@ -35,7 +35,7 @@ config/afkcinematics/music/
 
 Open this folder using **J → Open Music Folder**, then press **Sync Host Music**. The host's playlist is copied to the server, and tracks are sent to clients by the mod when playback starts. Clients only need the mod installed; they do not need to add music files. The playlist syncs again when the host joins, and pressing the sync button after editing the folder applies additions and removals. AFK Cinematics does not fall back to Minecraft's vanilla music when the server playlist is empty.
 
-For single-player without a server connection, the mod can play OGG files directly from the same folder.
+In single-player, the world owner automatically uploads that folder to the integrated server, including when cheats are off. Test immediately in the Overworld with **J → Start Now** or `/afkc start`; playback waits until the host playlist is synchronized. Resource packs reload when the playlist syncs, not when a cinematic starts.
 
 ## Build
 
