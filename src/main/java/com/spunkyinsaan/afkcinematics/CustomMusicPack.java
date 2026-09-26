@@ -1,5 +1,9 @@
 package com.spunkyinsaan.afkcinematics;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
@@ -9,11 +13,11 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.PathPackResources;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
-import net.minecraftforge.event.AddPackFindersEvent;
-import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraftforge.event.AddPackFindersEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -27,10 +31,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.Consumer;
 
 final class CustomMusicPack {
     private static final Logger LOGGER = LogUtils.getLogger();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String MOD_ID = "afkcinematics";
     private static final String PACK_ID = "afkcinematics_custom_music";
     private static final Path CONFIG_DIRECTORY = FMLPaths.CONFIGDIR.get().resolve("afkcinematics");
@@ -81,7 +85,7 @@ final class CustomMusicPack {
                     Pack.Position.TOP,
                     PackSource.BUILT_IN);
             if (pack != null) {
-                event.addRepositorySource((Consumer<Consumer<Pack>>) consumer -> consumer.accept(pack));
+                event.addRepositorySource(consumer -> consumer.accept(pack));
             }
         } catch (IOException exception) {
             LOGGER.error("Could not load custom AFK Cinematics music", exception);
@@ -90,13 +94,12 @@ final class CustomMusicPack {
 
     private static void prepareMusicPack() throws IOException {
         Path musicAssets = PACK_DIRECTORY.resolve("assets").resolve(MOD_ID);
-        Path soundsDirectory = musicAssets.resolve("sounds");
-        Path customSoundsDirectory = soundsDirectory.resolve("custom");
+        Path customSoundsDirectory = musicAssets.resolve("sounds").resolve("custom");
         Files.createDirectories(MUSIC_DIRECTORY);
         Files.createDirectories(customSoundsDirectory);
 
-        try (var files = Files.list(customSoundsDirectory)) {
-            files.filter(Files::isRegularFile)
+        try (var generatedFiles = Files.list(customSoundsDirectory)) {
+            generatedFiles.filter(Files::isRegularFile)
                     .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".ogg"))
                     .forEach(path -> {
                         try {
@@ -109,7 +112,7 @@ final class CustomMusicPack {
 
         List<ResourceLocation> foundTracks = new ArrayList<>();
         Set<String> usedNames = new HashSet<>();
-        StringBuilder soundsJson = new StringBuilder("{\n");
+        JsonObject soundsJson = new JsonObject();
         try (var files = Files.list(MUSIC_DIRECTORY)) {
             List<Path> musicFiles = files.filter(Files::isRegularFile)
                     .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".ogg"))
@@ -122,20 +125,27 @@ final class CustomMusicPack {
                 if (basename.isBlank() || !usedNames.add(basename)) continue;
 
                 String soundPath = "custom/" + basename;
-                Path target = customSoundsDirectory.resolve(basename + ".ogg");
-                Files.copy(musicFile, target, StandardCopyOption.REPLACE_EXISTING);
-                if (!foundTracks.isEmpty()) soundsJson.append(",\n");
-                soundsJson.append("  \\"").append(soundPath).append("\\": {\\"sounds\\": [{")
-                        .append("\\"name\\": \\"").append(MOD_ID).append(":").append(soundPath)
-                        .append("\\", \\"stream\\": true}]}");
+                Files.copy(musicFile, customSoundsDirectory.resolve(basename + ".ogg"),
+                        StandardCopyOption.REPLACE_EXISTING);
+                JsonObject sound = new JsonObject();
+                sound.addProperty("name", MOD_ID + ":" + soundPath);
+                sound.addProperty("stream", true);
+                JsonArray variants = new JsonArray();
+                variants.add(sound);
+                JsonObject definition = new JsonObject();
+                definition.add("sounds", variants);
+                soundsJson.add(soundPath, definition);
                 foundTracks.add(new ResourceLocation(MOD_ID, soundPath));
             }
         }
-        soundsJson.append("\n}\n");
-        Files.writeString(musicAssets.resolve("sounds.json"), soundsJson, StandardCharsets.UTF_8);
-        Files.writeString(PACK_DIRECTORY.resolve("pack.mcmeta"),
-                "{\n  \\"pack\\": {\n    \\"pack_format\\": 15,\n    \\"description\\": \\"AFK Cinematics custom music\\"\n  }\n}\n",
-                StandardCharsets.UTF_8);
+
+        Files.writeString(musicAssets.resolve("sounds.json"), GSON.toJson(soundsJson), StandardCharsets.UTF_8);
+        JsonObject pack = new JsonObject();
+        pack.addProperty("pack_format", 15);
+        pack.addProperty("description", "AFK Cinematics custom music");
+        JsonObject metadata = new JsonObject();
+        metadata.add("pack", pack);
+        Files.writeString(PACK_DIRECTORY.resolve("pack.mcmeta"), GSON.toJson(metadata), StandardCharsets.UTF_8);
         tracks = List.copyOf(foundTracks);
     }
 }
