@@ -1,0 +1,17 @@
+{
+  "category.afkcinematics": "AFK Cinematics",
+  "key.categories.afkcinematics": "AFK Cinematics",
+  "key.afkcinematics.open_settings": "Open AFK Cinematics Settings",
+  "key.afkcinematics.toggle_enabled": "Toggle AFK Cinematics Enabled",
+  "screen.afkcinematics.title": "AFK Cinematics Settings",
+  "screen.afkcinematics.enabled": "AFK Cinematics: %s",
+  "screen.afkcinematics.music": "Cinematic Music: %s",
+  "screen.afkcinematics.motion": "Camera Motion: %s",
+  "screen.afkcinematics.afk_time": "AFK Time: %s seconds",
+  "screen.afkcinematics.start_now": "Start Now",
+  "screen.afkcinematics.about": "About",
+  "screen.afkcinematics.open_key": "Open Settings Key: %s",
+  "screen.afkcinematics.toggle_key": "Toggle AFK Enabled Key: %s",
+  "screen.afkcinematics.on": "ON",
+  "screen.afkcinematics.off": "OFF"
+}
