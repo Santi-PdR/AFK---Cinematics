@@ -172,6 +172,7 @@ final class CustomMusicPack {
                 JsonObject sound = new JsonObject();
                 sound.addProperty("name", MOD_ID + ":" + soundPath);
                 sound.addProperty("stream", true);
+                sound.addProperty("volume", 0.5);
                 JsonArray variants = new JsonArray();
                 variants.add(sound);
                 JsonObject definition = new JsonObject();
