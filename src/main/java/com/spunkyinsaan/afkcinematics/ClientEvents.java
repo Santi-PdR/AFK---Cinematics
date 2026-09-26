@@ -1,11 +1,18 @@
 package com.spunkyinsaan.afkcinematics;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import net.minecraft.Util;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.Music;
+import net.minecraft.sounds.Musics;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.InputEvent;
+import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -45,6 +52,8 @@ public final class ClientEvents {
     private int passiveMovementTicks;
     private boolean activityPending;
     private boolean cinematicActive;
+    private boolean cinematicMusicActive;
+    private int lastMusicIndex = -1;
     private boolean forceStartRequested;
     private Vec3 lastPosition;
 
@@ -153,7 +162,7 @@ public final class ClientEvents {
         startGraceTicks = 60;
         passiveMovementTicks = 0;
         director.setMotionLevel(motionLevel);
-        director.start(minecraft);
+        director.start(minecraft);\n        playRandomCinematicMusic(minecraft);
     }
 
     private void stopDirector(Minecraft minecraft) {
@@ -161,7 +170,7 @@ public final class ClientEvents {
         cinematicActive = false;
         startGraceTicks = 0;
         passiveMovementTicks = 0;
-        director.stop(minecraft);
+        director.stop(minecraft);\n        stopCinematicMusic(minecraft);
     }
 
     boolean isEnabled() { return enabled; }
@@ -198,6 +207,23 @@ public final class ClientEvents {
 
     void requestManualStart() {
         if (enabled) forceStartRequested = true;
+    }
+
+    private void playRandomCinematicMusic(Minecraft minecraft) {
+        if (!musicEnabled || minecraft.level == null) return;
+        Music[] pool = {Musics.GAME, Musics.CREATIVE, Musics.END, Musics.UNDER_WATER};
+        int index = java.util.concurrent.ThreadLocalRandom.current().nextInt(pool.length);
+        if (index == lastMusicIndex) index = (index + 1
+                + java.util.concurrent.ThreadLocalRandom.current().nextInt(pool.length - 1)) % pool.length;
+        lastMusicIndex = index;
+        minecraft.getMusicManager().startPlaying(pool[index]);
+        cinematicMusicActive = true;
+    }
+
+    private void stopCinematicMusic(Minecraft minecraft) {
+        if (!cinematicMusicActive) return;
+        minecraft.getMusicManager().stopPlaying();
+        cinematicMusicActive = false;
     }
 
     private void loadConfig() {
