@@ -21,8 +21,6 @@ final class ClientMusicNetwork {
     private static final int MAX_TRACK_BYTES = 32 * 1024 * 1024;
     private static final Map<String, IncomingTrack> incomingTracks = new HashMap<>();
     private static final Set<String> loadedTracks = new HashSet<>();
-    private static final Set<String> tracksAwaitingReload = new HashSet<>();
-    private static boolean resourceReloadPending;
     private static String pendingTrack;
     private static boolean musicSyncSent;
     private static ResourceLocation lastSingleplayerTrack;
@@ -37,8 +35,6 @@ final class ClientMusicNetwork {
     public static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
         incomingTracks.clear();
         loadedTracks.clear();
-        tracksAwaitingReload.clear();
-        resourceReloadPending = false;
         pendingTrack = null;
         musicSyncSent = false;
     }
@@ -84,6 +80,7 @@ final class ClientMusicNetwork {
 
     static void syncHostMusic() {
         musicSyncSent = true;
+        CustomMusicPack.refreshLocalTracks();
         MusicNetwork.sendHostMusic();
     }
 
@@ -108,33 +105,21 @@ final class ClientMusicNetwork {
         incomingTracks.remove(key);
         try {
             CustomMusicPack.saveSynchronizedTrack(key, transfer.data);
-            tracksAwaitingReload.add(key);
-            resourceReloadPending = true;
+            loadedTracks.add(key);
+            if (key.equals(pendingTrack)) {
+                startPendingTrack(new ResourceLocation(AfkCinematicsMod.MOD_ID, "custom/" + key));
+            }
         } catch (IOException exception) {
             LogUtils.getLogger().error("Could not save synchronized AFK music {}", key, exception);
         }
     }
 
     static void finishTrackSync() {
-        if (!resourceReloadPending) return;
-        Minecraft minecraft = Minecraft.getInstance();
-        Set<String> loadedAfterReload = new HashSet<>(tracksAwaitingReload);
-        tracksAwaitingReload.clear();
-        resourceReloadPending = false;
-        minecraft.reloadResourcePacks().whenComplete((ignored, error) -> minecraft.execute(() -> {
-            if (error != null) {
-                LogUtils.getLogger().error("Could not reload the synchronized AFK music pack", error);
-                return;
-            }
-            loadedTracks.addAll(loadedAfterReload);
-            if (pendingTrack != null && loadedTracks.contains(pendingTrack)) {
-                startPendingTrack(new ResourceLocation(AfkCinematicsMod.MOD_ID, "custom/" + pendingTrack));
-            }
-        }));
+        // Track bytes are cached on disk and played through one pre-registered sound event.
+        // No resource-pack reload is needed when the server playlist changes.
     }
 
     static void setPlayback(String key, boolean active) {
-        Minecraft minecraft = Minecraft.getInstance();
         if (!active) {
             pendingTrack = null;
             ClientEvents.instance().stopSynchronizedMusic();
