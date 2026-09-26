@@ -175,7 +175,7 @@ public final class ClientEvents {
                 }))
                 .executes(context -> sendCommandFeedback(context,
                         "Usage: /afkc start | /afkc time <seconds> | /afkc music on|off | "
-                                + "/afkc motion <default|low|medium|high> | /afkc about"));
+                                + "/afkc motion <default|low|medium|high> | /afkc about")));
     }
 
     private int setMotionLevel(CommandContext<CommandSourceStack> context, MotionLevel level) {
