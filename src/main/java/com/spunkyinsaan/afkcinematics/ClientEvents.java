@@ -295,8 +295,8 @@ public final class ClientEvents {
         passiveMovementTicks = 0;
         director.setMotionLevel(motionLevel.name());
         director.start(minecraft);
-        ClientMusicNetwork.sendHostState(true);
         if (musicEnabled) stopBackgroundMusic(minecraft);
+        ClientMusicNetwork.sendHostState(true);
     }
 
     private void stopDirector(Minecraft minecraft) {
