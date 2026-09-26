@@ -4,6 +4,8 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.minecraft.Util;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.CommandSourceStack;
+import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.Music;
 import net.minecraft.sounds.Musics;
@@ -131,6 +133,53 @@ public final class ClientEvents {
             Util.getPlatform().openUri("https://modrinth.com/user/spunkyinsaan");
             event.setCanceled(true);
         }
+    }
+
+    @SubscribeEvent
+    public void onRegisterClientCommands(RegisterClientCommandsEvent event) {
+        event.getDispatcher().register(Commands.literal("afkc")
+                .then(Commands.literal("start").executes(context -> {
+                    if (!enabled) return sendCommandFeedback(context, "AFK Cinematics is disabled.");
+                    requestManualStart();
+                    return sendCommandFeedback(context, "Starting a cinematic.");
+                }))
+                .then(Commands.literal("time")
+                        .then(Commands.argument("seconds", IntegerArgumentType.integer(1, 36000))
+                                .executes(context -> {
+                                    int seconds = IntegerArgumentType.getInteger(context, "seconds");
+                                    setAfkTimeoutSeconds(seconds);
+                                    return sendCommandFeedback(context, "AFK delay set to " + seconds + " seconds.");
+                                })))
+                .then(Commands.literal("music")
+                        .then(Commands.literal("on").executes(context -> {
+                            setMusicEnabled(true);
+                            return sendCommandFeedback(context, "Cinematic music enabled.");
+                        }))
+                        .then(Commands.literal("off").executes(context -> {
+                            setMusicEnabled(false);
+                            return sendCommandFeedback(context, "Cinematic music disabled.");
+                        })))
+                .then(Commands.literal("motion")
+                        .then(Commands.literal("default").executes(context -> setMotionLevel(context, MotionLevel.DEFAULT)))
+                        .then(Commands.literal("low").executes(context -> setMotionLevel(context, MotionLevel.LOW)))
+                        .then(Commands.literal("medium").executes(context -> setMotionLevel(context, MotionLevel.MEDIUM)))
+                        .then(Commands.literal("high").executes(context -> setMotionLevel(context, MotionLevel.HIGH))))
+                .then(Commands.literal("about").executes(context -> {
+                    Util.getPlatform().openUri("https://modrinth.com/user/spunkyinsaan");
+                    return sendCommandFeedback(context, "AFK Cinematics by Spunky Insaan.");
+                })));
+    }
+
+    private int setMotionLevel(CommandContext<CommandSourceStack> context, MotionLevel level) {
+        motionLevel = level;
+        director.setMotionLevel(level);
+        saveConfig();
+        return sendCommandFeedback(context, "Cinematic motion set to " + level.displayName() + ".");
+    }
+
+    private int sendCommandFeedback(CommandContext<CommandSourceStack> context, String message) {
+        context.getSource().sendSuccess(() -> Component.literal(message), false);
+        return 1;
     }
 
     @SubscribeEvent
